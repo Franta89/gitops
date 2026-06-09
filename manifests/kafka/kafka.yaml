@@ -8,8 +8,8 @@ metadata:
     strimzi.io/kraft: enabled
 spec:
   kafka:
-    version: 4.0.0           # TODO: confirm version supported by the Strimzi release
-    metadataVersion: 4.0-IV3 # TODO: match the Kafka version
+    version: 4.1.0           # TODO: confirm version supported by the Strimzi release
+    metadataVersion: 4.1-IV1 # TODO: match the Kafka version
     listeners:
       - name: plain
         port: 9092
