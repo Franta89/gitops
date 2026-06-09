@@ -1,0 +1,20 @@
+# App-of-apps: apply this once with `kubectl apply -f`.
+# It points Argo CD at this repo's apps/ directory (the child Applications).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<ORG>/gitops.git   # TODO: replace <ORG>
+    targetRevision: main
+    path: apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

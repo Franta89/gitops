@@ -1,0 +1,24 @@
+# Deploys the Kafka + KafkaNodePool manifests from this repo. Sync wave 1
+# (after the Strimzi CRDs from wave 0).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-cluster
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<ORG>/gitops.git   # TODO: replace <ORG>
+    targetRevision: main
+    path: manifests/kafka
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
