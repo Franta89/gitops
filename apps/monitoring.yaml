@@ -1,5 +1,5 @@
 # kube-prometheus-stack: Prometheus + Grafana + node-exporter + kube-state-metrics.
-# Wave 3. Grafana: http://grafana.135-116-179-39.nip.io  login: admin / grafana-admin-changeme
+# Wave 3. Grafana: http://kafka-puzzle.swedencentral.cloudapp.azure.com/grafana  login: admin / grafana-admin-changeme
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -31,7 +31,12 @@ spec:
             enabled: true
             ingressClassName: nginx
             hosts:
-              - grafana.135-116-179-39.nip.io
+              - kafka-puzzle.swedencentral.cloudapp.azure.com
+            path: /grafana
+          grafana.ini:
+            server:
+              root_url: "http://kafka-puzzle.swedencentral.cloudapp.azure.com/grafana"
+              serve_from_sub_path: true
         prometheus:
           prometheusSpec:
             retention: 3d

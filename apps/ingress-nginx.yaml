@@ -1,5 +1,6 @@
 # Installs the NGINX ingress controller. Wave 2 — assigns a public Azure IP via
-# LoadBalancer service. Other apps reference this ingress class for external access.
+# LoadBalancer service. The azure-dns-label-name annotation gives a free Azure
+# subdomain: kafka-puzzle.swedencentral.cloudapp.azure.com
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,6 +20,8 @@ spec:
         controller:
           service:
             type: LoadBalancer
+            annotations:
+              service.beta.kubernetes.io/azure-dns-label-name: "kafka-puzzle"
           ingressClassResource:
             default: true
           resources:
