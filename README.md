@@ -5,10 +5,8 @@ The cluster is provisioned by the companion **infra-terraform** repo.
 
 ## Order
 1. Bring up the cluster + Argo CD via **infra-terraform**.
-2. Replace `<ORG>` in `bootstrap/root-app.yaml` and `apps/kafka-cluster.yaml`,
-   commit, and push.
-3. `kubectl apply -f bootstrap/root-app.yaml`
-4. Watch: `kubectl -n kafka get pods,kafka,kafkanodepool`
+2. `kubectl apply -f bootstrap/root-app.yaml`
+3. Watch: `kubectl -n kafka get pods,kafka,kafkanodepool`
 
 ## Argo CD UI
 `kubectl -n argocd port-forward svc/argocd-server 8080:443`

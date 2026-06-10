@@ -34,6 +34,6 @@ up there first; Argo CD is already installed by the time this repo is used.
 - `manifests/kafka/`          KafkaNodePool + Kafka custom resources
 
 ## TODO for Claude Code
-- [ ] Replace <ORG> in bootstrap/root-app.yaml and apps/kafka-cluster.yaml.
+- [x] Replace <ORG> in bootstrap/root-app.yaml and apps/kafka-cluster.yaml. (Franta89)
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
