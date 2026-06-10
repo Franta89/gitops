@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-metrics
+  namespace: kafka
+data:
+  kafka-metrics-config.yml: |
+    lowercaseOutputName: true
+    rules:
+      - pattern: "kafka.server<type=(.+), name=(.+), clientId=(.+), topic=(.+), partition=(.*)><>Value"
+        name: "kafka_server_$1_$2"
+        type: GAUGE
+        labels:
+          clientId: "$3"
+          topic: "$4"
+          partition: "$5"
+      - pattern: "kafka.server<type=(.+), name=(.+), clientId=(.+), brokerHost=(.+), brokerPort=(.+)><>Value"
+        name: "kafka_server_$1_$2"
+        type: GAUGE
+        labels:
+          clientId: "$3"
+          broker: "$4:$5"
+      - pattern: "kafka.server<type=(.+), name=(.+)><>Count"
+        name: "kafka_server_$1_$2_total"
+        type: COUNTER
+      - pattern: "kafka.server<type=(.+), name=(.+)><>Value"
+        name: "kafka_server_$1_$2"
+        type: GAUGE
+      - pattern: "kafka.network<type=(.+), name=(.+)><>Value"
+        name: "kafka_network_$1_$2"
+        type: GAUGE
+      - pattern: "kafka.network<type=(.+), name=(.+)><>Count"
+        name: "kafka_network_$1_$2_total"
+        type: COUNTER
+      - pattern: "kafka.log<type=(.+), name=(.+), logDirectory=(.+), topic=(.+), partition=(.*)><>Value"
+        name: "kafka_log_$1_$2"
+        type: GAUGE
+        labels:
+          logDirectory: "$3"
+          topic: "$4"
+          partition: "$5"
+      - pattern: "kafka.controller<type=(.+), name=(.+)><>Value"
+        name: "kafka_controller_$1_$2"
+        type: GAUGE
+      - pattern: "kafka.controller<type=(.+), name=(.+)><>Count"
+        name: "kafka_controller_$1_$2_total"
+        type: COUNTER
+      - pattern: "kafka.coordinator.(.+)<type=(.+), name=(.+)><>Value"
+        name: "kafka_coordinator_$1_$2_$3"
+        type: GAUGE

@@ -1,0 +1,24 @@
+# PodMonitors, Grafana dashboards, and recording rules for the puzzle app.
+# Wave 4 so kube-prometheus-stack CRDs exist before these resources are applied.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Franta89/gitops.git
+    targetRevision: main
+    path: manifests/monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

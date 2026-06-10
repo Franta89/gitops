@@ -1,0 +1,25 @@
+# ClusterIssuer for Let's Encrypt. Wave 4 — cert-manager CRDs must exist first (wave 2).
+# Uses HTTP-01 challenge via the NGINX ingress controller.
+# Replace the email with your own before enabling TLS on any Ingress.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Franta89/gitops.git
+    targetRevision: main
+    path: manifests/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

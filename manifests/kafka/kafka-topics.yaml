@@ -1,0 +1,38 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: puzzle-user-visited
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "604800000"   # 7 days
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: puzzle-game-started
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "604800000"   # 7 days
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: puzzle-game-completed
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-kafka
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "2592000000"   # 30 days — keep completed events longer for stats
