@@ -22,6 +22,10 @@ spec:
             type: LoadBalancer
             annotations:
               service.beta.kubernetes.io/azure-dns-label-name: "kafka-puzzle"
+              # Azure LB HTTP probe uses path / by default; NGINX returns 404 there
+              # which marks the backend unhealthy and drops all inbound connections.
+              # /healthz returns 200 on both port 80 and 443.
+              service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"
           ingressClassResource:
             default: true
           resources:
