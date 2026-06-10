@@ -1,5 +1,5 @@
 # kube-prometheus-stack: Prometheus + Grafana + node-exporter + kube-state-metrics.
-# Wave 3. Access Grafana via: kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
+# Wave 3. Grafana: http://grafana.135-116-179-39.nip.io  login: admin / grafana-admin-changeme
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -27,6 +27,11 @@ spec:
               memory: 128Mi
             limits:
               memory: 256Mi
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            hosts:
+              - grafana.135-116-179-39.nip.io
         prometheus:
           prometheusSpec:
             retention: 3d
