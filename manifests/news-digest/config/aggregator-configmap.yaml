@@ -200,15 +200,21 @@ data:
             temperature=0.3,
             max_tokens=1500,
         )
+        import re
         raw = response.choices[0].message.content.strip()
+        # Strip markdown fences the model sometimes wraps around JSON
+        raw = re.sub(r'^```(?:json)?\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw).strip()
+        # Remove trailing commas before ] or } (json module doesn't accept them)
+        raw = re.sub(r',\s*([}\]])', r'\1', raw)
         try:
             result = json.loads(raw)
         except json.JSONDecodeError:
-            import re
             match = re.search(r'\{.*\}', raw, re.DOTALL)
             if not match:
                 raise ValueError(f"Could not parse OpenAI response as JSON: {raw[:200]}")
-            result = json.loads(match.group(0))
+            cleaned = re.sub(r',\s*([}\]])', r'\1', match.group(0))
+            result = json.loads(cleaned)
         return result
 
     # ------------------------------------------------------------------
