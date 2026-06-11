@@ -1,4 +1,4 @@
-# Runs at 06:00 CET (05:00 UTC) on the 1st of each month.
+# Runs at 06:00 CET/CEST on the 1st of each month. timeZone handles DST.
 # Summarises all daily digests from the previous calendar month.
 apiVersion: batch/v1
 kind: CronJob
@@ -6,7 +6,8 @@ metadata:
   name: news-digest-monthly
   namespace: news-digest
 spec:
-  schedule: "0 5 1 * *"
+  schedule: "0 6 1 * *"
+  timeZone: "Europe/Prague"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 2

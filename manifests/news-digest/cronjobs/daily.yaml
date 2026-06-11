@@ -1,4 +1,4 @@
-# Runs at 06:10 CET (05:10 UTC) — 10 minutes after the cluster starts.
+# Runs at 06:30 CET/CEST daily. timeZone handles DST automatically.
 # Looks back 25 hours for news, skips URLs already stored in the DB.
 apiVersion: batch/v1
 kind: CronJob
@@ -6,7 +6,8 @@ metadata:
   name: news-digest-daily
   namespace: news-digest
 spec:
-  schedule: "10 5 * * *"
+  schedule: "30 6 * * *"
+  timeZone: "Europe/Prague"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 3
