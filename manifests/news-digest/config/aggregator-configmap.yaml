@@ -28,10 +28,10 @@ data:
     DATABASE_URL       = os.environ["DATABASE_URL"]
 
     TOPICS = {
-        "azure_cloud":    "Azure cloud computing Microsoft Azure new features announcements",
-        "ai_development": "artificial intelligence machine learning LLM development research 2025",
-        "world_news":     "geopolitical economic world news power shift global 2025",
-        "it_security":    "cybersecurity threat vulnerability breach attack 2025",
+        "azure_cloud":    '"Azure" OR "Microsoft Azure" OR "Azure cloud" OR "Azure AI"',
+        "ai_development": '"artificial intelligence" OR "machine learning" OR "LLM" OR "OpenAI" OR "GPT" OR "generative AI"',
+        "world_news":     'geopolitics OR "world news" OR "international relations" OR "global economy" OR "United Nations"',
+        "it_security":    'cybersecurity OR "security breach" OR "vulnerability" OR "ransomware" OR "zero-day" OR "data breach"',
     }
 
     AREA_LABELS = {
