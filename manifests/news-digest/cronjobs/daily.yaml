@@ -59,7 +59,16 @@ spec:
                 - name: aggregator-script
                   mountPath: /scripts/aggregator.py
                   subPath: aggregator.py
+                - name: akv-secrets
+                  mountPath: /mnt/secrets
+                  readOnly: true
           volumes:
             - name: aggregator-script
               configMap:
                 name: aggregator-script
+            - name: akv-secrets
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: news-digest-akv

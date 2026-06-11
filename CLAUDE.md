@@ -23,18 +23,17 @@ exist before the ddot app can run.
 
 ## Applications
 
-| App                 | Wave | Namespace     | Purpose                                        |
-| ------------------- | ---- | ------------- | ---------------------------------------------- |
-| strimzi-operator    | 0    | kafka         | Strimzi CRDs + operator                        |
-| kafka-cluster       | 1    | kafka         | KRaft Kafka cluster                            |
-| cert-manager        | 2    | cert-manager  | TLS certificate management                     |
-| ingress-nginx       | 2    | ingress-nginx | Public NGINX ingress controller                |
-| sealed-secrets      | 2    | kube-system   | SealedSecrets operator (decrypt SealedSecrets) |
-| monitoring          | 3    | monitoring    | Prometheus + Grafana                           |
-| postgresql          | 3    | puzzle        | PostgreSQL for puzzle app                      |
-| cert-manager-config | 4    | cert-manager  | Let's Encrypt ClusterIssuer                    |
-| monitoring-config   | 4    | monitoring    | PodMonitors + dashboards                       |
-| news-digest (ddot)  | 5    | news-digest   | Daily Dose of Tech web app                     |
+| App                 | Wave | Namespace     | Purpose                           |
+| ------------------- | ---- | ------------- | --------------------------------- |
+| strimzi-operator    | 0    | kafka         | Strimzi CRDs + operator           |
+| kafka-cluster       | 1    | kafka         | KRaft Kafka cluster               |
+| cert-manager        | 2    | cert-manager  | TLS certificate management        |
+| ingress-nginx       | 2    | ingress-nginx | Public NGINX ingress controller   |
+| monitoring          | 3    | monitoring    | Prometheus + Grafana              |
+| postgresql          | 3    | puzzle        | PostgreSQL for puzzle app         |
+| cert-manager-config | 4    | cert-manager  | Let's Encrypt ClusterIssuer       |
+| monitoring-config   | 4    | monitoring    | PodMonitors + dashboards          |
+| news-digest (ddot)  | 5    | news-digest   | Daily Dose of Tech web app        |
 
 ## Daily Dose of Tech (ddot)
 
@@ -70,33 +69,28 @@ Bing Search v7 was retired; NewsAPI (newsapi.org) is used instead.
 - One Argo CD Application per concern under `apps/`.
 - Raw K8s manifests under `manifests/`.
 - Sync waves order dependencies. Never skip a wave without a documented reason.
-- **No plaintext secrets committed to git.** Real-value secret files are in `.gitignore`.
-  Each secret has a `*.yaml.example` template (committed, placeholder values) and a
-  `*sealedsecret.yaml` file (committed, kubeseal-encrypted — safe to store in git).
-  SealedSecrets operator is deployed at wave 2 (`apps/sealed-secrets.yaml`).
+- **No plaintext secrets committed to git.** All secrets live in Azure Key Vault;
+  the AKV CSI driver materialises them as standard K8s Secrets at pod startup.
+  Plaintext secret file paths are listed in `.gitignore` as a safety net.
 - All containers: `allowPrivilegeEscalation: false`, `capabilities.drop: ALL`,
   `seccompProfile: RuntimeDefault`. CPU and memory limits set on every container.
 
-## Sealing a secret (workflow)
+## Azure Key Vault secret workflow
+
+All secrets live in Azure Key Vault (`kv-ddot-dev-swc-001`). The AKV CSI driver
+(enabled as an AKS add-on) pulls them into pods at startup via `SecretProviderClass`
+resources, creating standard K8s Secret objects that `envFrom: secretRef` consumes.
 
 ```text
-# 1. Fetch the cluster public cert (once per cluster lifetime, don't commit it):
-kubeseal --fetch-cert \
-  --controller-name=sealed-secrets-controller \
-  --controller-namespace=kube-system \
-  > pub-cert.pem
+# After terraform apply — paste the three outputs into both SecretProviderClass
+# files and both secret-sa.yaml files:
+terraform output key_vault_name          # → keyvaultName in SecretProviderClass
+terraform output tenant_id               # → tenantId in SecretProviderClass
+terraform output managed_identity_client_id  # → clientID in SecretProviderClass + SA annotation
 
-# 2. For each secret — copy the .yaml.example, fill in real values, then seal:
-cp manifests/cert-manager/cloudflare-api-token-secret.yaml.example \
-   manifests/cert-manager/cloudflare-api-token-secret.yaml
-# edit cloudflare-api-token-secret.yaml with the real token, then:
-kubeseal --cert pub-cert.pem --format yaml \
-  < manifests/cert-manager/cloudflare-api-token-secret.yaml \
-  > manifests/cert-manager/cloudflare-api-token-sealedsecret.yaml
-
-# 3. Repeat for the other two secrets (see their .yaml.example files for exact paths).
-
-# 4. Commit the *sealedsecret.yaml files. Delete the plaintext .yaml files from disk.
+# Secret values are stored by Terraform (in terraform.tfvars, which is gitignored).
+# To rotate a secret: update the value in Azure Portal → AKV → secret → new version.
+# The CSI driver picks up the new version within 2 minutes (rotation interval).
 ```
 
 ## Repo layout
@@ -124,11 +118,9 @@ manifests/
 
 - [x] Replace `<ORG>` in bootstrap/root-app.yaml and apps/kafka-cluster.yaml. (Franta89)
 - [x] Daily Dose of Tech app added: manifests/news-digest/, apps/news-digest.yaml.
-- [x] SealedSecrets operator added: apps/sealed-secrets.yaml (wave 2). Secret templates in *.yaml.example files.
+- [x] AKV CSI driver enabled on AKS; Key Vault, SecretProviderClass, and secret-sync resources added.
+- [ ] After `terraform apply` in infra-terraform: fill AKV placeholders in SecretProviderClass files and secret-sa.yaml files.
 - [ ] After `terraform apply` in infra-terraform: fill placeholders in serviceaccount.yaml and settings-configmap.yaml.
-- [ ] Register at newsapi.org (free), copy API key into manifests/news-digest/config/newsapi-secret.yaml.
-- [ ] Seal all three secrets using kubeseal (see "Sealing a secret" workflow above). Commit the *sealedsecret.yaml files.
 - [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict), then enable orange-cloud proxy on both A records.
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
-- [ ] Verify sealed-secrets chart version in apps/sealed-secrets.yaml matches latest release.

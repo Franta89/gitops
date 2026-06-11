@@ -12,6 +12,7 @@ spec:
     metadata:
       labels:
         app: news-api
+        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: news-digest-sa
       securityContext:
@@ -51,6 +52,9 @@ spec:
             - name: api-script
               mountPath: /app/api.py
               subPath: api.py
+            - name: akv-secrets
+              mountPath: /mnt/secrets
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /api/health
@@ -68,3 +72,9 @@ spec:
         - name: api-script
           configMap:
             name: api-script
+        - name: akv-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: news-digest-akv

@@ -13,7 +13,12 @@ spec:
     metadata:
       labels:
         app: postgres
+        azure.workload.identity/use: "true"
     spec:
+      serviceAccountName: news-digest-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16-alpine
@@ -21,22 +26,20 @@ spec:
             - containerPort: 5432
           env:
             - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_USER
+              value: "newsdigest"
+            - name: POSTGRES_DB
+              value: "newsdigest"
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_DB
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           resources:
             requests:
               cpu: 50m
@@ -46,11 +49,21 @@ spec:
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
+            - name: akv-secrets
+              mountPath: /mnt/secrets
+              readOnly: true
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "newsdigest"]
             initialDelaySeconds: 10
             periodSeconds: 5
+      volumes:
+        - name: akv-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: news-digest-akv
   volumeClaimTemplates:
     - metadata:
         name: postgres-data

@@ -1,0 +1,9 @@
+# Adds the Workload Identity webhook label to the cert-manager namespace.
+# Required so the mutating webhook injects the projected token volume into
+# the secret-sync pod.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    azure.workload.identity/use: "true"

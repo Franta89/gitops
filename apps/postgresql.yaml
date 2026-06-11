@@ -1,5 +1,5 @@
 # PostgreSQL for storing puzzle game events.
-# TODO: move auth.password to a SealedSecret before any public exposure.
+# TODO: move auth.password to an AKV secret before any public exposure.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
