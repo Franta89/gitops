@@ -91,7 +91,7 @@ spec:
         name: postgres-data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: azurefile-csi
+        storageClassName: azurefile-postgres
         resources:
           requests:
             storage: 2Gi
