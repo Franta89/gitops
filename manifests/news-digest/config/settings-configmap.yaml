@@ -10,5 +10,4 @@ data:
   OPENAI_ENDPOINT: "REPLACE_WITH_TERRAFORM_OUTPUT_openai_endpoint"
   OPENAI_DEPLOYMENT: "gpt-4o-mini"
   OPENAI_API_VERSION: "2024-07-18"
-  BING_ENDPOINT: "https://api.bing.microsoft.com/v7.0/search"
   LOG_LEVEL: "INFO"

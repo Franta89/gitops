@@ -20,12 +20,12 @@ data:
                         format="%(asctime)s %(levelname)s %(message)s")
     log = logging.getLogger(__name__)
 
-    OPENAI_ENDPOINT   = os.environ["OPENAI_ENDPOINT"]
-    OPENAI_DEPLOYMENT = os.environ["OPENAI_DEPLOYMENT"]
+    OPENAI_ENDPOINT    = os.environ["OPENAI_ENDPOINT"]
+    OPENAI_DEPLOYMENT  = os.environ["OPENAI_DEPLOYMENT"]
     OPENAI_API_VERSION = os.environ["OPENAI_API_VERSION"]
-    BING_ENDPOINT     = os.environ["BING_ENDPOINT"]
-    BING_API_KEY      = os.environ["BING_API_KEY"]
-    DATABASE_URL      = os.environ["DATABASE_URL"]
+    NEWSAPI_KEY        = os.environ["NEWSAPI_KEY"]
+    NEWSAPI_ENDPOINT   = "https://newsapi.org/v2/everything"
+    DATABASE_URL       = os.environ["DATABASE_URL"]
 
     TOPICS = {
         "azure_cloud":    "Azure cloud computing Microsoft Azure new features announcements",
@@ -138,28 +138,30 @@ data:
                       item["url"], item["summary"]))
 
     # ------------------------------------------------------------------
-    # Bing Search
+    # NewsAPI search
     # ------------------------------------------------------------------
-    def bing_search(query: str, since: datetime, count: int = 15) -> list[dict]:
-        since_str = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+    def newsapi_search(query: str, since: datetime, page_size: int = 20) -> list[dict]:
         params = {
-            "q": query,
-            "count": count,
-            "freshness": f"{since_str}..",
-            "textFormat": "Raw",
+            "q":        query,
+            "from":     since.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "sortBy":   "publishedAt",
+            "pageSize": page_size,
+            "language": "en",
+            "apiKey":   NEWSAPI_KEY,
         }
-        headers = {"Ocp-Apim-Subscription-Key": BING_API_KEY}
-        resp = requests.get(BING_ENDPOINT, headers=headers, params=params, timeout=15)
+        resp = requests.get(NEWSAPI_ENDPOINT, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
+        if data.get("status") != "ok":
+            raise RuntimeError(f"NewsAPI error: {data.get('message', data)}")
         results = []
-        for item in data.get("webPages", {}).get("value", []):
+        for article in data.get("articles", []):
             results.append({
-                "title": item.get("name", ""),
-                "url":   item.get("url", ""),
-                "snippet": item.get("snippet", ""),
+                "title":   article.get("title", ""),
+                "url":     article.get("url", ""),
+                "snippet": article.get("description") or article.get("content", ""),
             })
-        log.info("Bing returned %d results for query: %s", len(results), query[:60])
+        log.info("NewsAPI returned %d results for query: %s", len(results), query[:60])
         return results
 
     # ------------------------------------------------------------------
@@ -301,9 +303,9 @@ Candidate articles (JSON array):
 
         for area, query in TOPICS.items():
             log.info("Processing area: %s", area)
-            candidates = bing_search(query, since)
+            candidates = newsapi_search(query, since)
             if not candidates:
-                log.warning("No Bing results for %s — skipping", area)
+                log.warning("No NewsAPI results for %s — skipping", area)
                 continue
             result = summarize_area(client, AREA_LABELS[area], candidates, known_urls)
             area_summary_id = upsert_area_summary(

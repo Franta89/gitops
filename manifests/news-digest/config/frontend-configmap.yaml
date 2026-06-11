@@ -62,7 +62,7 @@ data:
             The app runs on an <strong>Azure Kubernetes Service (AKS)</strong> cluster managed with
             <a href="https://argoproj.github.io/cd/" target="_blank" rel="noopener">Argo CD</a>
             (GitOps). News is fetched daily via the
-            <strong>Bing Search API</strong> and summarised by
+            <strong>NewsAPI</strong> and summarised by
             <strong>Azure OpenAI (GPT-4o-mini)</strong> using
             <strong>Azure Workload Identity</strong> for keyless authentication.
           </p>

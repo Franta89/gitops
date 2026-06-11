@@ -51,8 +51,9 @@ Areas: Azure Cloud · AI Development · World News · IT Security
 
 Schedule: aggregator CronJob at 06:10 CET daily; monthly summary on the 1st.
 
-Auth: Azure Workload Identity (keyless) for OpenAI. Bing API key stored in
-`bing-secret` (Bing Search v7 has no RBAC support — documented exception).
+Auth: Azure Workload Identity (keyless) for OpenAI. NewsAPI key stored in
+`newsapi-secret` (NewsAPI uses key-based auth only — documented exception).
+Bing Search v7 was retired; NewsAPI (newsapi.org) is used instead.
 
 ## Key decisions / constraints
 
@@ -125,6 +126,7 @@ manifests/
 - [x] Daily Dose of Tech app added: manifests/news-digest/, apps/news-digest.yaml.
 - [x] SealedSecrets operator added: apps/sealed-secrets.yaml (wave 2). Secret templates in *.yaml.example files.
 - [ ] After `terraform apply` in infra-terraform: fill placeholders in serviceaccount.yaml and settings-configmap.yaml.
+- [ ] Register at newsapi.org (free), copy API key into manifests/news-digest/config/newsapi-secret.yaml.
 - [ ] Seal all three secrets using kubeseal (see "Sealing a secret" workflow above). Commit the *sealedsecret.yaml files.
 - [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict), then enable orange-cloud proxy on both A records.
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
