@@ -9,5 +9,5 @@ metadata:
 data:
   OPENAI_ENDPOINT: "https://oai-ddot-dev-swc-001-fa2dd.openai.azure.com/"
   OPENAI_DEPLOYMENT: "gpt-4o-mini"
-  OPENAI_API_VERSION: "2024-07-18"
+  OPENAI_API_VERSION: "2024-10-21"
   LOG_LEVEL: "INFO"
