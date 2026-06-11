@@ -19,6 +19,7 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+        fsGroup: 70
       containers:
         - name: postgres
           image: postgres:16-alpine
@@ -69,7 +70,7 @@ spec:
         name: postgres-data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: managed-csi
+        storageClassName: azurefile-csi
         resources:
           requests:
             storage: 2Gi
