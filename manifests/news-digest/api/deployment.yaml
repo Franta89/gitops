@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: news-digest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: news-api
+  template:
+    metadata:
+      labels:
+        app: news-api
+    spec:
+      serviceAccountName: news-digest-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: python:3.12-slim
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install --quiet \
+                "fastapi~=0.115.6" \
+                "uvicorn~=0.32.1" \
+                "psycopg2-binary~=2.9.10" &&
+              uvicorn api:app --host 0.0.0.0 --port 8000
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 8000
+          workingDir: /app
+          envFrom:
+            - configMapRef:
+                name: news-digest-settings
+            - secretRef:
+                name: postgres-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: api-script
+              mountPath: /app/api.py
+              subPath: api.py
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 20
+      volumes:
+        - name: api-script
+          configMap:
+            name: api-script

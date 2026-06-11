@@ -1,0 +1,14 @@
+# Non-secret application settings shared by the API deployment and CronJobs.
+# OPENAI_ENDPOINT: replace the placeholder with the value from:
+#   terraform output openai_endpoint   (in infra-terraform repo)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: news-digest-settings
+  namespace: news-digest
+data:
+  OPENAI_ENDPOINT: "REPLACE_WITH_TERRAFORM_OUTPUT_openai_endpoint"
+  OPENAI_DEPLOYMENT: "gpt-4o-mini"
+  OPENAI_API_VERSION: "2024-07-18"
+  BING_ENDPOINT: "https://api.bing.microsoft.com/v7.0/search"
+  LOG_LEVEL: "INFO"

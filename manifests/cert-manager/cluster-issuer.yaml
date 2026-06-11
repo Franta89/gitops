@@ -1,3 +1,13 @@
+# DNS-01 challenge via Cloudflare API token.
+# Required because the Cloudflare proxy (orange cloud) hides the real server IP,
+# which breaks HTTP-01. DNS-01 proves domain ownership by writing a TXT record
+# in Cloudflare DNS — no inbound connection to the cluster needed.
+#
+# Before this works:
+#   1. Create a Cloudflare API token (see manifests/cert-manager/cloudflare-api-token-secret.yaml)
+#   2. Replace the placeholder in that Secret with your real token
+#   3. In Cloudflare dashboard: SSL/TLS → set mode to "Full (strict)"
+#   4. Enable orange-cloud proxy on both A records for dailydoseoftech.org
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -9,6 +19,9 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
-      - http01:
-          ingress:
-            class: nginx
+      - dns01:
+          cloudflare:
+            email: frantisekwrozyna@gmail.com
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token

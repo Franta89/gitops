@@ -1,0 +1,523 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-html
+  namespace: news-digest
+data:
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        location / {
+            root /usr/share/nginx/html;
+            index index.html;
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api/ {
+            proxy_pass http://api-svc:8000/api/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }
+
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Daily Dose of Tech</title>
+      <meta name="description" content="Daily Dose of Tech — AI-curated news digest covering Azure Cloud, AI Development, World News, and IT Security." />
+      <link rel="stylesheet" href="/style.css" />
+    </head>
+    <body>
+      <header>
+        <div class="header-inner">
+          <div class="brand">
+            <h1>Daily Dose of Tech</h1>
+            <span class="tagline">AI-curated · Published daily at 07:00 CET</span>
+          </div>
+          <div class="controls">
+            <label for="datePicker">Browse:</label>
+            <input type="date" id="datePicker" />
+            <button id="monthlyBtn">Monthly Summary</button>
+            <button id="aboutBtn" class="about-toggle">About</button>
+          </div>
+        </div>
+        <p id="digestDate" class="digest-date"></p>
+      </header>
+
+      <!-- About / disclaimer panel -->
+      <div id="aboutPanel" class="about-panel" style="display:none">
+        <div class="about-inner">
+          <h2>About Daily Dose of Tech</h2>
+          <p>
+            <strong>Daily Dose of Tech (ddot)</strong> is a <em>development and test project</em>
+            exploring Kubernetes orchestration and Azure AI services. It is <strong>not a production
+            system</strong> and may be unavailable or updated without notice.
+          </p>
+          <p>
+            The app runs on an <strong>Azure Kubernetes Service (AKS)</strong> cluster managed with
+            <a href="https://argoproj.github.io/cd/" target="_blank" rel="noopener">Argo CD</a>
+            (GitOps). News is fetched daily via the
+            <strong>Bing Search API</strong> and summarised by
+            <strong>Azure OpenAI (GPT-4o-mini)</strong> using
+            <strong>Azure Workload Identity</strong> for keyless authentication.
+          </p>
+          <ul>
+            <li>Infrastructure: AKS (Free tier), Azure Sweden Central</li>
+            <li>AI: Azure OpenAI GPT-4o-mini via Azure Foundry</li>
+            <li>GitOps: Argo CD, Strimzi/Kafka, cert-manager, NGINX Ingress</li>
+            <li>Purpose: dev/test sandbox — Kubernetes &amp; AI services integration</li>
+          </ul>
+          <p class="about-footer">
+            Content is AI-generated and provided for informational purposes only.
+            Always verify news with primary sources.
+          </p>
+        </div>
+      </div>
+
+      <main id="app">
+        <div id="loadingMsg" class="loading">Loading today's digest…</div>
+        <div id="errorMsg" class="error" style="display:none"></div>
+
+        <!-- Daily view -->
+        <div id="dailyView" style="display:none">
+          <div class="grid" id="areaGrid"></div>
+        </div>
+
+        <!-- Monthly view -->
+        <div id="monthlyView" style="display:none">
+          <button class="back-btn" id="backBtn">← Back to Daily</button>
+          <div class="monthly-content">
+            <h2 id="monthlyTitle"></h2>
+            <div id="monthlyContent"></div>
+          </div>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <span>Daily Dose of Tech &mdash; dev/test project &mdash; AI-generated content, verify with primary sources</span>
+      </footer>
+
+      <script src="/app.js"></script>
+    </body>
+    </html>
+
+  style.css: |
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3748;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .brand { display: flex; flex-direction: column; gap: 0.15rem; }
+    h1 { font-size: 1.5rem; color: #63b3ed; font-weight: 700; }
+    .tagline { font-size: 0.75rem; color: #718096; letter-spacing: 0.03em; }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .controls label { font-size: 0.875rem; color: #a0aec0; }
+
+    #datePicker {
+      background: #2d3748;
+      color: #e2e8f0;
+      border: 1px solid #4a5568;
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.875rem;
+    }
+
+    .about-toggle { background: #2d3748; }
+    .about-toggle:hover { background: #4a5568; }
+
+    .about-panel {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3748;
+    }
+    .about-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .about-inner h2 { font-size: 1rem; color: #63b3ed; }
+    .about-inner p, .about-inner li { font-size: 0.875rem; line-height: 1.6; color: #a0aec0; }
+    .about-inner ul { padding-left: 1.25rem; }
+    .about-inner a { color: #90cdf4; }
+    .about-footer { font-style: italic; color: #718096 !important; }
+
+    .site-footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.75rem;
+      color: #4a5568;
+      border-top: 1px solid #2d3748;
+      margin-top: 3rem;
+    }
+
+    button {
+      background: #2b6cb0;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.4rem 1rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: background 0.15s;
+    }
+    button:hover { background: #3182ce; }
+
+    .digest-date {
+      max-width: 1200px;
+      margin: 0.4rem auto 0;
+      font-size: 0.85rem;
+      color: #718096;
+    }
+
+    main { max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem; }
+
+    .loading, .error {
+      text-align: center;
+      padding: 3rem;
+      font-size: 1.1rem;
+      color: #a0aec0;
+    }
+    .error { color: #fc8181; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #63b3ed;
+    }
+
+    .card-badge {
+      font-size: 0.7rem;
+      background: #2d3748;
+      color: #a0aec0;
+      padding: 0.15rem 0.5rem;
+      border-radius: 99px;
+    }
+
+    .card-overview {
+      font-size: 0.875rem;
+      line-height: 1.6;
+      color: #cbd5e0;
+    }
+
+    .deep-dive-btn {
+      align-self: flex-start;
+      background: #276749;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.8rem;
+    }
+    .deep-dive-btn:hover { background: #2f855a; }
+    .deep-dive-btn.open { background: #744210; }
+    .deep-dive-btn.open:hover { background: #975a16; }
+
+    .articles {
+      display: none;
+      flex-direction: column;
+      gap: 1rem;
+      border-top: 1px solid #2d3748;
+      padding-top: 1rem;
+    }
+    .articles.visible { display: flex; }
+
+    .article {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 0.75rem;
+    }
+
+    .article-rank {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #f6ad55;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+
+    .article-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .article-title a {
+      color: #90cdf4;
+      text-decoration: none;
+    }
+    .article-title a:hover { text-decoration: underline; }
+
+    .article-summary { font-size: 0.8rem; line-height: 1.55; color: #a0aec0; }
+
+    /* Monthly view */
+    .back-btn {
+      background: #2d3748;
+      margin-bottom: 1.5rem;
+    }
+    .back-btn:hover { background: #4a5568; }
+
+    .monthly-content {
+      background: #1a1d27;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+
+    #monthlyTitle {
+      font-size: 1.2rem;
+      color: #63b3ed;
+      margin-bottom: 1rem;
+    }
+
+    #monthlyContent {
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: #cbd5e0;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+      .header-inner { flex-direction: column; align-items: flex-start; }
+    }
+
+  app.js: |
+    const AREA_LABELS = {
+      azure_cloud:    "Azure Cloud Computing",
+      ai_development: "AI Development",
+      world_news:     "World News",
+      it_security:    "IT Security",
+    };
+
+    const AREA_ORDER = ["azure_cloud", "ai_development", "world_news", "it_security"];
+
+    let currentDate = null;
+
+    async function api(path) {
+      const res = await fetch(path);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      return res.json();
+    }
+
+    function showError(msg) {
+      document.getElementById("loadingMsg").style.display = "none";
+      const el = document.getElementById("errorMsg");
+      el.textContent = msg;
+      el.style.display = "block";
+    }
+
+    function hideError() {
+      document.getElementById("errorMsg").style.display = "none";
+    }
+
+    function renderDigest(data) {
+      hideError();
+      currentDate = data.date;
+      document.getElementById("digestDate").textContent =
+        `Digest for ${data.date} — generated at 06:10 CET`;
+      document.getElementById("datePicker").value = data.date;
+
+      const grid = document.getElementById("areaGrid");
+      grid.innerHTML = "";
+
+      const areaMap = {};
+      for (const a of data.areas) areaMap[a.area] = a;
+
+      for (const key of AREA_ORDER) {
+        const area = areaMap[key];
+        if (!area) continue;
+        grid.appendChild(buildCard(area, key));
+      }
+
+      document.getElementById("loadingMsg").style.display = "none";
+      document.getElementById("dailyView").style.display = "block";
+      document.getElementById("monthlyView").style.display = "none";
+    }
+
+    function buildCard(area, key) {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      card.innerHTML = `
+        <div class="card-header">
+          <span class="card-title">${AREA_LABELS[key] || key}</span>
+          <span class="card-badge">3 articles</span>
+        </div>
+        <p class="card-overview">${escHtml(area.overview)}</p>
+        <button class="deep-dive-btn" data-area="${key}">Deep Dive ↓</button>
+        <div class="articles" id="articles-${key}"></div>
+      `;
+
+      const btn = card.querySelector(".deep-dive-btn");
+      const articlesEl = card.querySelector(".articles");
+
+      if (area.items && area.items.length > 0) {
+        renderArticles(articlesEl, area.items);
+        btn.addEventListener("click", () => toggleDeepDive(btn, articlesEl));
+      } else {
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          btn.textContent = "Loading…";
+          try {
+            const detail = await api(`/api/areas/${key}/${currentDate}`);
+            renderArticles(articlesEl, detail.items);
+            toggleDeepDive(btn, articlesEl);
+          } catch (e) {
+            btn.textContent = "Error — retry";
+            btn.disabled = false;
+          }
+        });
+      }
+
+      return card;
+    }
+
+    function renderArticles(container, items) {
+      container.innerHTML = items.map(item => `
+        <div class="article">
+          <div class="article-rank">#${item.rank}</div>
+          <div class="article-title">
+            <a href="${escHtml(item.url)}" target="_blank" rel="noopener">
+              ${escHtml(item.title)}
+            </a>
+          </div>
+          <p class="article-summary">${escHtml(item.summary)}</p>
+        </div>
+      `).join("");
+    }
+
+    function toggleDeepDive(btn, articlesEl) {
+      const open = articlesEl.classList.toggle("visible");
+      btn.textContent = open ? "Close ↑" : "Deep Dive ↓";
+      btn.classList.toggle("open", open);
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function loadDigest(dateStr) {
+      document.getElementById("loadingMsg").style.display = "block";
+      document.getElementById("loadingMsg").textContent = "Loading…";
+      document.getElementById("dailyView").style.display = "none";
+      document.getElementById("monthlyView").style.display = "none";
+      try {
+        const data = await api(dateStr ? `/api/digest/${dateStr}` : "/api/digest/today");
+        renderDigest(data);
+      } catch (e) {
+        showError(`Could not load digest: ${e.message}`);
+      }
+    }
+
+    async function loadMonthly(year, month) {
+      document.getElementById("dailyView").style.display = "none";
+      document.getElementById("loadingMsg").style.display = "block";
+      document.getElementById("loadingMsg").textContent = "Loading monthly summary…";
+      try {
+        const data = await api(`/api/monthly/${year}/${month}`);
+        document.getElementById("loadingMsg").style.display = "none";
+        document.getElementById("monthlyTitle").textContent =
+          `Monthly Summary — ${year}-${String(month).padStart(2,"0")}`;
+        document.getElementById("monthlyContent").textContent = data.content;
+        document.getElementById("monthlyView").style.display = "block";
+      } catch (e) {
+        showError(`Monthly summary not available: ${e.message}`);
+      }
+    }
+
+    async function populateDatePicker() {
+      try {
+        const dates = await api("/api/dates");
+        const picker = document.getElementById("datePicker");
+        if (dates.length > 0) {
+          picker.min = dates[dates.length - 1];
+          picker.max = dates[0];
+        }
+      } catch (_) {}
+    }
+
+    // Event listeners
+    document.getElementById("datePicker").addEventListener("change", e => {
+      if (e.target.value) loadDigest(e.target.value);
+    });
+
+    document.getElementById("monthlyBtn").addEventListener("click", () => {
+      const now = new Date();
+      loadMonthly(now.getFullYear(), now.getMonth() + 1);
+    });
+
+    document.getElementById("backBtn").addEventListener("click", () => {
+      loadDigest(currentDate);
+    });
+
+    document.getElementById("aboutBtn").addEventListener("click", () => {
+      const panel = document.getElementById("aboutPanel");
+      const btn = document.getElementById("aboutBtn");
+      const visible = panel.style.display !== "none";
+      panel.style.display = visible ? "none" : "block";
+      btn.textContent = visible ? "About" : "Close About";
+    });
+
+    // Boot
+    populateDatePicker();
+    loadDigest(null);

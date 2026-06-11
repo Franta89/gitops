@@ -1,0 +1,25 @@
+# Deploys the news-digest application (namespace, PostgreSQL, API, frontend,
+# CronJobs, Ingress). Wave 5 — after cert-manager, ingress-nginx, and the
+# existing postgresql app are all running.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: news-digest
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Franta89/gitops.git
+    targetRevision: main
+    path: manifests/news-digest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: news-digest
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

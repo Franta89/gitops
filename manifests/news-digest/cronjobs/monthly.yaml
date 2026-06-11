@@ -1,0 +1,65 @@
+# Runs at 06:00 CET (05:00 UTC) on the 1st of each month.
+# Summarises all daily digests from the previous calendar month.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: news-digest-monthly
+  namespace: news-digest
+spec:
+  schedule: "0 5 1 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: news-digest-worker
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: news-digest-sa
+          restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: aggregator
+              image: python:3.12-slim
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  pip install --quiet \
+                    "openai~=1.57.4" \
+                    "azure-identity~=1.19.0" \
+                    "psycopg2-binary~=2.9.10" \
+                    "requests~=2.32.3" &&
+                  python /scripts/aggregator.py monthly
+              workingDir: /scripts
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              envFrom:
+                - configMapRef:
+                    name: news-digest-settings
+                - secretRef:
+                    name: bing-secret
+                - secretRef:
+                    name: postgres-secret
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              volumeMounts:
+                - name: aggregator-script
+                  mountPath: /scripts/aggregator.py
+                  subPath: aggregator.py
+          volumes:
+            - name: aggregator-script
+              configMap:
+                name: aggregator-script

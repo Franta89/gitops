@@ -1,0 +1,9 @@
+# Explicit namespace manifest so we can add the workload identity label.
+# CreateNamespace=true in the ArgoCD Application would create it without labels,
+# so an explicit resource is required for the webhook to function.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: news-digest
+  labels:
+    azure.workload.identity/use: "true"

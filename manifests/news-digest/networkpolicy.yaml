@@ -1,0 +1,68 @@
+# Restrict which pods may reach PostgreSQL.
+# Only the API deployment and CronJob worker pods are allowed on port 5432.
+# All other ingress to postgres is denied by default.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-ingress
+  namespace: news-digest
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: news-api
+        - podSelector:
+            matchLabels:
+              app: news-digest-worker
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Allow ingress-nginx to reach the frontend on port 80.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-ingress
+  namespace: news-digest
+spec:
+  podSelector:
+    matchLabels:
+      app: news-frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+---
+# Allow ingress-nginx to reach the API (via frontend nginx proxy) and
+# allow the frontend pods to reach the API directly within the namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-ingress
+  namespace: news-digest
+spec:
+  podSelector:
+    matchLabels:
+      app: news-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: news-frontend
+      ports:
+        - protocol: TCP
+          port: 8000

@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-script
+  namespace: news-digest
+data:
+  api.py: |
+    import os
+    from datetime import date
+    from typing import Optional
+    import psycopg2
+    import psycopg2.extras
+    from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
+
+    DATABASE_URL = os.environ["DATABASE_URL"]
+
+    app = FastAPI(title="Daily Dose of Tech API")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://dailydoseoftech.org",
+            "https://www.dailydoseoftech.org",
+        ],
+        allow_methods=["GET"],
+        allow_headers=["*"],
+    )
+
+    def get_conn():
+        return psycopg2.connect(DATABASE_URL,
+                                cursor_factory=psycopg2.extras.RealDictCursor)
+
+    # ------------------------------------------------------------------
+
+    @app.get("/api/health")
+    def health():
+        return {"status": "ok"}
+
+    @app.get("/api/dates")
+    def list_dates():
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT date FROM daily_digests ORDER BY date DESC"
+                )
+                rows = cur.fetchall()
+            return [str(r["date"]) for r in rows]
+        finally:
+            conn.close()
+
+    def _build_digest(rows_summaries, rows_items):
+        areas = {}
+        for row in rows_summaries:
+            areas[row["area"]] = {
+                "area": row["area"],
+                "overview": row["overview"],
+                "items": [],
+            }
+        for row in rows_items:
+            if row["area_summary_area"] in areas:
+                areas[row["area_summary_area"]]["items"].append({
+                    "rank": row["rank"],
+                    "title": row["title"],
+                    "url": row["url"],
+                    "summary": row["summary"],
+                })
+        for a in areas.values():
+            a["items"].sort(key=lambda x: x["rank"])
+        return list(areas.values())
+
+    def _fetch_digest_by_date(conn, digest_date: date):
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM daily_digests WHERE date = %s", (digest_date,)
+            )
+            row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404,
+                                detail=f"No digest found for {digest_date}")
+        digest_id = row["id"]
+
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT area, overview FROM area_summaries
+                WHERE digest_id = %s ORDER BY area
+            """, (digest_id,))
+            summaries = cur.fetchall()
+
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT a.area AS area_summary_area,
+                       n.rank, n.title, n.url, n.summary
+                FROM news_items n
+                JOIN area_summaries a ON a.id = n.area_summary_id
+                WHERE a.digest_id = %s
+                ORDER BY a.area, n.rank
+            """, (digest_id,))
+            items = cur.fetchall()
+
+        return {
+            "date": str(digest_date),
+            "areas": _build_digest(summaries, items),
+        }
+
+    @app.get("/api/digest/today")
+    def digest_today():
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT date FROM daily_digests ORDER BY date DESC LIMIT 1"
+                )
+                row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404,
+                                    detail="No digests available yet")
+            return _fetch_digest_by_date(conn, row["date"])
+        finally:
+            conn.close()
+
+    @app.get("/api/digest/{digest_date}")
+    def digest_by_date(digest_date: str):
+        try:
+            d = date.fromisoformat(digest_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
+        conn = get_conn()
+        try:
+            return _fetch_digest_by_date(conn, d)
+        finally:
+            conn.close()
+
+    @app.get("/api/areas/{area}/{digest_date}")
+    def area_detail(area: str, digest_date: str):
+        try:
+            d = date.fromisoformat(digest_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT a.id, a.overview
+                    FROM area_summaries a
+                    JOIN daily_digests d ON d.id = a.digest_id
+                    WHERE d.date = %s AND a.area = %s
+                """, (d, area))
+                row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Area/date not found")
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT rank, title, url, summary
+                    FROM news_items WHERE area_summary_id = %s
+                    ORDER BY rank
+                """, (row["id"],))
+                items = cur.fetchall()
+            return {
+                "date": str(d),
+                "area": area,
+                "overview": row["overview"],
+                "items": list(items),
+            }
+        finally:
+            conn.close()
+
+    @app.get("/api/monthly/{year}/{month}")
+    def monthly_summary(year: int, month: int):
+        if not (1 <= month <= 12):
+            raise HTTPException(status_code=400, detail="Month must be 1-12")
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT content, created_at
+                    FROM monthly_summaries
+                    WHERE year = %s AND month = %s
+                """, (year, month))
+                row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404,
+                                    detail="Monthly summary not yet generated")
+            return {
+                "year": year,
+                "month": month,
+                "content": row["content"],
+                "created_at": str(row["created_at"]),
+            }
+        finally:
+            conn.close()

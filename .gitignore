@@ -1,2 +1,11 @@
 .DS_Store
 *.swp
+
+# Plaintext Kubernetes Secrets — never commit real values.
+# Fill in real values locally, seal with kubeseal, then commit the *sealedsecret.yaml instead.
+manifests/cert-manager/cloudflare-api-token-secret.yaml
+manifests/news-digest/config/bing-secret.yaml
+manifests/news-digest/postgres/secret.yaml
+
+# SealedSecrets cluster public cert — public key but not needed in the repo.
+pub-cert.pem

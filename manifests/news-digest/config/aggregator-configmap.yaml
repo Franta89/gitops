@@ -1,0 +1,320 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aggregator-script
+  namespace: news-digest
+data:
+  aggregator.py: |
+    import os
+    import json
+    import logging
+    import requests
+    import psycopg2
+    import psycopg2.extras
+    from datetime import datetime, timedelta, timezone
+    from openai import AzureOpenAI
+    from azure.identity import WorkloadIdentityCredential
+    from azure.core.credentials import AccessToken
+
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger(__name__)
+
+    OPENAI_ENDPOINT   = os.environ["OPENAI_ENDPOINT"]
+    OPENAI_DEPLOYMENT = os.environ["OPENAI_DEPLOYMENT"]
+    OPENAI_API_VERSION = os.environ["OPENAI_API_VERSION"]
+    BING_ENDPOINT     = os.environ["BING_ENDPOINT"]
+    BING_API_KEY      = os.environ["BING_API_KEY"]
+    DATABASE_URL      = os.environ["DATABASE_URL"]
+
+    TOPICS = {
+        "azure_cloud":    "Azure cloud computing Microsoft Azure new features announcements",
+        "ai_development": "artificial intelligence machine learning LLM development research 2025",
+        "world_news":     "geopolitical economic world news power shift global 2025",
+        "it_security":    "cybersecurity threat vulnerability breach attack 2025",
+    }
+
+    AREA_LABELS = {
+        "azure_cloud":    "Azure Cloud Computing",
+        "ai_development": "AI Development",
+        "world_news":     "World News",
+        "it_security":    "IT Security",
+    }
+
+    # ------------------------------------------------------------------
+    # Token provider that wraps WorkloadIdentityCredential for AzureOpenAI
+    # ------------------------------------------------------------------
+    class _TokenProvider:
+        def __init__(self):
+            self._cred = WorkloadIdentityCredential()
+
+        def __call__(self) -> str:
+            token: AccessToken = self._cred.get_token(
+                "https://cognitiveservices.azure.com/.default"
+            )
+            return token.token
+
+    # ------------------------------------------------------------------
+    # Database helpers
+    # ------------------------------------------------------------------
+    def get_conn():
+        return psycopg2.connect(DATABASE_URL)
+
+    def create_tables(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS daily_digests (
+                    id         SERIAL PRIMARY KEY,
+                    date       DATE NOT NULL UNIQUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS area_summaries (
+                    id        SERIAL PRIMARY KEY,
+                    digest_id INT NOT NULL REFERENCES daily_digests(id) ON DELETE CASCADE,
+                    area      VARCHAR(50) NOT NULL,
+                    overview  TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(digest_id, area)
+                );
+                CREATE TABLE IF NOT EXISTS news_items (
+                    id              SERIAL PRIMARY KEY,
+                    area_summary_id INT NOT NULL REFERENCES area_summaries(id) ON DELETE CASCADE,
+                    rank            SMALLINT NOT NULL CHECK (rank BETWEEN 1 AND 3),
+                    title           TEXT NOT NULL,
+                    url             TEXT NOT NULL,
+                    summary         TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS monthly_summaries (
+                    id         SERIAL PRIMARY KEY,
+                    year       SMALLINT NOT NULL,
+                    month      SMALLINT NOT NULL CHECK (month BETWEEN 1 AND 12),
+                    content    TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(year, month)
+                );
+                CREATE INDEX IF NOT EXISTS idx_daily_digests_date
+                    ON daily_digests(date DESC);
+                CREATE INDEX IF NOT EXISTS idx_area_summaries_digest
+                    ON area_summaries(digest_id);
+                CREATE INDEX IF NOT EXISTS idx_news_items_area_summary
+                    ON news_items(area_summary_id);
+            """)
+        conn.commit()
+
+    def get_known_urls(conn):
+        with conn.cursor() as cur:
+            cur.execute("SELECT url FROM news_items")
+            return {row[0] for row in cur.fetchall()}
+
+    def upsert_digest(conn, today):
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO daily_digests (date) VALUES (%s)
+                ON CONFLICT (date) DO UPDATE SET created_at = NOW()
+                RETURNING id
+            """, (today,))
+            return cur.fetchone()[0]
+
+    def upsert_area_summary(conn, digest_id, area, overview):
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO area_summaries (digest_id, area, overview)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (digest_id, area)
+                DO UPDATE SET overview = EXCLUDED.overview, created_at = NOW()
+                RETURNING id
+            """, (digest_id, area, overview))
+            return cur.fetchone()[0]
+
+    def insert_news_items(conn, area_summary_id, items):
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM news_items WHERE area_summary_id = %s",
+                        (area_summary_id,))
+            for item in items:
+                cur.execute("""
+                    INSERT INTO news_items (area_summary_id, rank, title, url, summary)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (area_summary_id, item["rank"], item["title"],
+                      item["url"], item["summary"]))
+
+    # ------------------------------------------------------------------
+    # Bing Search
+    # ------------------------------------------------------------------
+    def bing_search(query: str, since: datetime, count: int = 15) -> list[dict]:
+        since_str = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+        params = {
+            "q": query,
+            "count": count,
+            "freshness": f"{since_str}..",
+            "textFormat": "Raw",
+        }
+        headers = {"Ocp-Apim-Subscription-Key": BING_API_KEY}
+        resp = requests.get(BING_ENDPOINT, headers=headers, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        results = []
+        for item in data.get("webPages", {}).get("value", []):
+            results.append({
+                "title": item.get("name", ""),
+                "url":   item.get("url", ""),
+                "snippet": item.get("snippet", ""),
+            })
+        log.info("Bing returned %d results for query: %s", len(results), query[:60])
+        return results
+
+    # ------------------------------------------------------------------
+    # OpenAI summarization
+    # ------------------------------------------------------------------
+    def summarize_area(client: AzureOpenAI, area_label: str,
+                       candidates: list[dict], known_urls: set[str]) -> dict:
+        fresh = [c for c in candidates if c["url"] not in known_urls]
+        if not fresh:
+            log.warning("No fresh articles for %s — falling back to all candidates", area_label)
+            fresh = candidates
+
+        prompt = f"""You are a senior tech journalist. Below are {len(fresh)} recent news snippets about "{area_label}".
+
+Your task:
+1. Pick the 3 most important and distinct articles. Skip duplicates or near-duplicates.
+2. For each of the 3 chosen articles write a clear, one-paragraph summary (3-5 sentences) that explains why it matters. Include the article URL at the end of the summary.
+3. After the 3 summaries, write a short analysis paragraph (3-4 sentences) summarising today's key themes and trends in this area.
+
+Return ONLY valid JSON in this exact structure — no markdown fences, no extra keys:
+{{
+  "items": [
+    {{"rank": 1, "title": "...", "url": "...", "summary": "..."}},
+    {{"rank": 2, "title": "...", "url": "...", "summary": "..."}},
+    {{"rank": 3, "title": "...", "url": "...", "summary": "..."}}
+  ],
+  "overview": "..."
+}}
+
+Candidate articles (JSON array):
+{json.dumps(fresh, ensure_ascii=False)}
+"""
+        response = client.chat.completions.create(
+            model=OPENAI_DEPLOYMENT,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=1500,
+        )
+        raw = response.choices[0].message.content.strip()
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError:
+            import re
+            match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if not match:
+                raise ValueError(f"Could not parse OpenAI response as JSON: {raw[:200]}")
+            result = json.loads(match.group(0))
+        return result
+
+    # ------------------------------------------------------------------
+    # Monthly summary
+    # ------------------------------------------------------------------
+    def generate_monthly_summary(conn, client: AzureOpenAI, year: int, month: int):
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT a.area, a.overview, n.title, n.url, n.summary
+                FROM daily_digests d
+                JOIN area_summaries a ON a.digest_id = d.id
+                JOIN news_items n ON n.area_summary_id = a.id
+                WHERE EXTRACT(YEAR FROM d.date) = %s
+                  AND EXTRACT(MONTH FROM d.date) = %s
+                ORDER BY a.area, n.rank
+            """, (year, month))
+            rows = cur.fetchall()
+
+        if not rows:
+            log.warning("No data found for %d-%02d — skipping monthly summary", year, month)
+            return
+
+        grouped: dict[str, list] = {}
+        for row in rows:
+            grouped.setdefault(row["area"], []).append(
+                f"- {row['title']}: {row['summary']}"
+            )
+
+        prompt_parts = [f"Monthly News Summary for {year}-{month:02d}\n"]
+        for area, items in grouped.items():
+            label = AREA_LABELS.get(area, area)
+            prompt_parts.append(f"\n## {label}\n" + "\n".join(items[:30]))
+
+        prompt = "\n".join(prompt_parts) + (
+            "\n\nWrite a comprehensive monthly summary covering the major themes, "
+            "trends, and developments across all four areas. Highlight connections "
+            "between areas where relevant. 4-6 paragraphs total, one per area plus "
+            "a cross-cutting observations paragraph."
+        )
+
+        response = client.chat.completions.create(
+            model=OPENAI_DEPLOYMENT,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+            max_tokens=2000,
+        )
+        content = response.choices[0].message.content.strip()
+
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO monthly_summaries (year, month, content)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (year, month) DO UPDATE SET content = EXCLUDED.content,
+                    created_at = NOW()
+            """, (year, month, content))
+        conn.commit()
+        log.info("Monthly summary written for %d-%02d", year, month)
+
+    # ------------------------------------------------------------------
+    # Main
+    # ------------------------------------------------------------------
+    def main():
+        import sys
+        mode = sys.argv[1] if len(sys.argv) > 1 else "daily"
+
+        conn = get_conn()
+        create_tables(conn)
+
+        token_provider = _TokenProvider()
+        client = AzureOpenAI(
+            azure_ad_token_provider=token_provider,
+            azure_endpoint=OPENAI_ENDPOINT,
+            api_version=OPENAI_API_VERSION,
+        )
+
+        now_utc = datetime.now(timezone.utc)
+
+        if mode == "monthly":
+            # Summarise the previous calendar month
+            first_of_this_month = now_utc.replace(day=1)
+            prev = first_of_this_month - timedelta(days=1)
+            generate_monthly_summary(conn, client, prev.year, prev.month)
+            conn.close()
+            return
+
+        # Daily mode
+        today = now_utc.date()
+        since = now_utc - timedelta(hours=25)
+        known_urls = get_known_urls(conn)
+        digest_id = upsert_digest(conn, today)
+        conn.commit()
+
+        for area, query in TOPICS.items():
+            log.info("Processing area: %s", area)
+            candidates = bing_search(query, since)
+            if not candidates:
+                log.warning("No Bing results for %s — skipping", area)
+                continue
+            result = summarize_area(client, AREA_LABELS[area], candidates, known_urls)
+            area_summary_id = upsert_area_summary(
+                conn, digest_id, area, result["overview"]
+            )
+            insert_news_items(conn, area_summary_id, result["items"])
+            conn.commit()
+            log.info("Area %s done — %d items written", area, len(result["items"]))
+
+        conn.close()
+        log.info("Daily digest complete for %s", today)
+
+    if __name__ == "__main__":
+        main()
