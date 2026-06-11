@@ -174,26 +174,26 @@ data:
             log.warning("No fresh articles for %s — falling back to all candidates", area_label)
             fresh = candidates
 
-        prompt = f"""You are a senior tech journalist. Below are {len(fresh)} recent news snippets about "{area_label}".
-
-Your task:
-1. Pick the 3 most important and distinct articles. Skip duplicates or near-duplicates.
-2. For each of the 3 chosen articles write a clear, one-paragraph summary (3-5 sentences) that explains why it matters. Include the article URL at the end of the summary.
-3. After the 3 summaries, write a short analysis paragraph (3-4 sentences) summarising today's key themes and trends in this area.
-
-Return ONLY valid JSON in this exact structure — no markdown fences, no extra keys:
-{{
-  "items": [
-    {{"rank": 1, "title": "...", "url": "...", "summary": "..."}},
-    {{"rank": 2, "title": "...", "url": "...", "summary": "..."}},
-    {{"rank": 3, "title": "...", "url": "...", "summary": "..."}}
-  ],
-  "overview": "..."
-}}
-
-Candidate articles (JSON array):
-{json.dumps(fresh, ensure_ascii=False)}
-"""
+        prompt = (
+            f'You are a senior tech journalist. Below are {len(fresh)} recent news snippets about "{area_label}".\n\n'
+            'Your task:\n'
+            '1. Pick the 3 most important and distinct articles. Skip duplicates or near-duplicates.\n'
+            '2. For each of the 3 chosen articles write a clear, one-paragraph summary (3-5 sentences)'
+            ' that explains why it matters. Include the article URL at the end of the summary.\n'
+            '3. After the 3 summaries, write a short analysis paragraph (3-4 sentences)'
+            ' summarising today\'s key themes and trends in this area.\n\n'
+            'Return ONLY valid JSON in this exact structure — no markdown fences, no extra keys:\n'
+            '{\n'
+            '  "items": [\n'
+            '    {"rank": 1, "title": "...", "url": "...", "summary": "..."},\n'
+            '    {"rank": 2, "title": "...", "url": "...", "summary": "..."},\n'
+            '    {"rank": 3, "title": "...", "url": "...", "summary": "..."}\n'
+            '  ],\n'
+            '  "overview": "..."\n'
+            '}\n\n'
+            'Candidate articles (JSON array):\n'
+            + json.dumps(fresh, ensure_ascii=False)
+        )
         response = client.chat.completions.create(
             model=OPENAI_DEPLOYMENT,
             messages=[{"role": "user", "content": prompt}],
