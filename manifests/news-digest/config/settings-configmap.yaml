@@ -4,7 +4,7 @@ metadata:
   name: news-digest-settings
   namespace: news-digest
 data:
-  OPENAI_ENDPOINT: "https://aih-ddot-dev-swc-001.services.ai.azure.com/"
+  OPENAI_ENDPOINT: "https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/"
   OPENAI_DEPLOYMENT: "gpt-4.1-mini"
   OPENAI_API_VERSION: "2025-01-01-preview"
   LOG_LEVEL: "INFO"
