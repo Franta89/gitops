@@ -90,7 +90,7 @@ data:
         <span id="footerText"></span>
       </footer>
 
-      <script src="/app.js"></script>
+      <script src="/app.js?v=2"></script>
     </body>
     </html>
 
@@ -180,7 +180,8 @@ data:
     }
 
     .brand { display: flex; flex-direction: column; gap: 0.15rem; }
-    h1 { font-size: 1.5rem; color: var(--accent); font-weight: 700; }
+    h1 { font-size: 1.5rem; color: var(--accent); font-weight: 700; cursor: pointer; }
+    h1:hover { text-decoration: underline; }
     .tagline { font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.03em; }
 
     .controls { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
@@ -717,10 +718,21 @@ data:
     }
 
     document.getElementById("datePicker").addEventListener("change", function(e) {
-      if (e.target.value) loadDigest(e.target.value);
+      if (e.target.value) { closeAbout(); loadDigest(e.target.value); }
     });
 
+    function closeAbout() {
+      var panel = document.getElementById("aboutPanel");
+      var main  = document.getElementById("app");
+      if (panel.style.display !== "none") {
+        panel.style.display = "none";
+        main.style.display  = "";
+        document.getElementById("aboutBtn").textContent = T[lang].about;
+      }
+    }
+
     document.getElementById("monthlyBtn").addEventListener("click", function() {
+      closeAbout();
       var now = new Date();
       loadMonthly(now.getFullYear(), now.getMonth() + 1);
     });
@@ -751,6 +763,11 @@ data:
       if (currentDigestData && document.getElementById("dailyView").style.display !== "none") {
         renderDigest(currentDigestData);
       }
+    });
+
+    document.querySelector("h1").addEventListener("click", function() {
+      closeAbout();
+      loadDigest(null);
     });
 
     applyTheme();
