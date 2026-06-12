@@ -133,6 +133,20 @@ data:
                     END;
                 END $$;
             """)
+            # Add Czech summary columns (idempotent)
+            cur.execute("""
+                DO $$
+                BEGIN
+                    BEGIN
+                        ALTER TABLE area_summaries ADD COLUMN overview_cs TEXT NOT NULL DEFAULT '';
+                    EXCEPTION WHEN duplicate_column THEN NULL;
+                    END;
+                    BEGIN
+                        ALTER TABLE news_items ADD COLUMN summary_cs TEXT NOT NULL DEFAULT '';
+                    EXCEPTION WHEN duplicate_column THEN NULL;
+                    END;
+                END $$;
+            """)
         conn.commit()
 
     def get_known_urls(conn):
@@ -149,15 +163,17 @@ data:
             """, (today,))
             return cur.fetchone()[0]
 
-    def upsert_area_summary(conn, digest_id, area, overview):
+    def upsert_area_summary(conn, digest_id, area, overview, overview_cs=""):
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO area_summaries (digest_id, area, overview)
-                VALUES (%s, %s, %s)
+                INSERT INTO area_summaries (digest_id, area, overview, overview_cs)
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT (digest_id, area)
-                DO UPDATE SET overview = EXCLUDED.overview, created_at = NOW()
+                DO UPDATE SET overview = EXCLUDED.overview,
+                              overview_cs = EXCLUDED.overview_cs,
+                              created_at = NOW()
                 RETURNING id
-            """, (digest_id, area, overview))
+            """, (digest_id, area, overview, overview_cs))
             return cur.fetchone()[0]
 
     def insert_news_items(conn, area_summary_id, items):
@@ -166,10 +182,10 @@ data:
                         (area_summary_id,))
             for item in items:
                 cur.execute("""
-                    INSERT INTO news_items (area_summary_id, rank, title, url, summary)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO news_items (area_summary_id, rank, title, url, summary, summary_cs)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (area_summary_id, item["rank"], item["title"],
-                      item["url"], item["summary"]))
+                      item["url"], item["summary"], item.get("summary_cs", "")))
 
     # ------------------------------------------------------------------
     # NewsAPI search — fetch up to 25 candidates from the last 25 hours
@@ -216,19 +232,23 @@ data:
             'Prioritise: architectural announcements, protocol/API changes, CVE disclosures, '
             'benchmark results, infrastructure shifts, and major product releases. '
             'Skip marketing copy, opinion pieces, and near-duplicate stories.\n'
-            '2. For each selected article write a precise technical summary (4-6 sentences) '
-            'using domain-specific terminology appropriate for senior engineers. '
-            'Explain the affected components, technical impact, and architectural implications.\n'
-            '3. Write a concise technical synthesis paragraph (3-5 sentences) identifying '
-            'patterns, converging trends, and engineering implications across all selected articles.\n\n'
+            '2. For each selected article write a precise technical summary (4-6 sentences). '
+            'You MUST cite specific version numbers, CVE IDs, product names, and measurable '
+            'metrics where available. Name affected components, explain root cause or mechanism, '
+            'and state concrete architectural or operational impact. '
+            'Do NOT use vague phrases like "highlights the importance of" or "showcases potential".\n'
+            '3. Write a concise technical synthesis (3-5 sentences) identifying specific '
+            'architectural shifts, API/protocol changes, and concrete engineering implications. '
+            'Be direct and specific — name products, versions, and patterns.\n'
+            '4. Translate the "summary" and "overview" fields into Czech for the _cs variants.\n\n'
             'Return ONLY valid JSON — no markdown fences, no extra keys:\n'
             '{\n'
             '  "items": [\n'
-            '    {"rank": 1, "title": "...", "url": "...", "summary": "..."},\n'
-            '    {"rank": 2, "title": "...", "url": "...", "summary": "..."},\n'
+            '    {"rank": 1, "title": "...", "url": "...", "summary": "...", "summary_cs": "..."},\n'
             '    ...\n'
             '  ],\n'
-            '  "overview": "..."\n'
+            '  "overview": "...",\n'
+            '  "overview_cs": "..."\n'
             '}\n\n'
             'Candidate articles (JSON array):\n'
             + json.dumps(fresh, ensure_ascii=False)
@@ -236,8 +256,8 @@ data:
         response = client.chat.completions.create(
             model=OPENAI_DEPLOYMENT,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000,
+            temperature=0.2,
+            max_tokens=2500,
         )
         import re
         raw = response.choices[0].message.content.strip()
@@ -355,7 +375,7 @@ data:
                 continue
             result = summarize_area(client, AREA_LABELS[area], candidates, known_urls)
             area_summary_id = upsert_area_summary(
-                conn, digest_id, area, result["overview"]
+                conn, digest_id, area, result["overview"], result.get("overview_cs", "")
             )
             insert_news_items(conn, area_summary_id, result["items"])
             conn.commit()

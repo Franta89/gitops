@@ -399,7 +399,7 @@ data:
       "  |                                         |                           |",
       "  |                         +--------------+---------------+            |",
       "  |                         |   CronJob -- aggregator.py   |            |",
-      "  |                         |   06:10 CET daily            |            |",
+      "  |                         |   06:30 CET daily            |            |",
       "  |                         +--------------+---------------+            |",
       "  |                                        |                            |",
       "  |  +-------------------------------------+------------------------+   |",
@@ -429,7 +429,7 @@ data:
         loading:        "Loading today's digest...",
         loadingGeneric: "Loading...",
         loadingMonthly: "Loading monthly summary...",
-        digestDate:     function(d) { return "Digest for " + d + " -- generated at 06:10 CET"; },
+        digestDate:     function(d) { return "Digest for " + d + " -- generated at 06:30 CET"; },
         errorDigest:    "Could not load digest:",
         errorMonthly:   "Monthly summary not available:",
         monthlyTitle:   function(y, m) { return "Monthly Summary -- " + y + "-" + String(m).padStart(2,"0"); },
@@ -462,7 +462,7 @@ data:
         loading:        "Nacitam dnesni prehled...",
         loadingGeneric: "Nacitam...",
         loadingMonthly: "Nacitam mesicni prehled...",
-        digestDate:     function(d) { return "Prehled pro " + d + " -- vygenerovano v 06:10 SEC"; },
+        digestDate:     function(d) { return "Prehled pro " + d + " -- vygenerovano v 06:30 SEC"; },
         errorDigest:    "Prehled se nepodarilo nacist:",
         errorMonthly:   "Mesicni prehled neni dostupny:",
         monthlyTitle:   function(y, m) { return "Mesicni prehled -- " + y + "-" + String(m).padStart(2,"0"); },
@@ -504,6 +504,7 @@ data:
     const AREA_ORDER = ["cloud_computing", "ai_development", "world_news", "it_security"];
 
     var currentDate = null;
+    var currentDigestData = null;
     var lang  = localStorage.getItem("ddot-lang")  || "en";
     var theme = localStorage.getItem("ddot-theme") || "dark";
 
@@ -572,6 +573,7 @@ data:
     function renderDigest(data) {
       hideError();
       currentDate = data.date;
+      currentDigestData = data;
       document.getElementById("digestDate").textContent = T[lang].digestDate(data.date);
       document.getElementById("datePicker").value = data.date;
 
@@ -599,14 +601,16 @@ data:
       var labels = AREA_LABELS[lang] || AREA_LABELS.en;
       var label = labels[key] || key;
       var count = area.items ? area.items.length : 0;
-      var badge = count > 0 ? count + " articles" : "articles";
+      var articleWord = lang === "cs" ? "článků" : "articles";
+      var badge = count > 0 ? count + " " + articleWord : articleWord;
+      var overview = (lang === "cs" && area.overview_cs) ? area.overview_cs : area.overview;
 
       card.innerHTML =
         '<div class="card-header">' +
           '<span class="card-title">' + escHtml(label) + '</span>' +
           '<span class="card-badge">' + badge + '</span>' +
         '</div>' +
-        '<p class="card-overview">' + escHtml(area.overview) + '</p>' +
+        '<p class="card-overview">' + escHtml(overview) + '</p>' +
         '<button class="deep-dive-btn" data-area="' + key + '">' + T[lang].deepDive + '</button>' +
         '<div class="articles" id="articles-' + key + '"></div>';
 
@@ -636,6 +640,7 @@ data:
 
     function renderArticles(container, items) {
       container.innerHTML = items.map(function(item) {
+        var summary = (lang === "cs" && item.summary_cs) ? item.summary_cs : item.summary;
         return '<div class="article">' +
           '<div class="article-rank">#' + item.rank + '</div>' +
           '<div class="article-title">' +
@@ -643,15 +648,25 @@ data:
               escHtml(item.title) +
             '</a>' +
           '</div>' +
-          '<p class="article-summary">' + escHtml(item.summary) + '</p>' +
+          '<p class="article-summary">' + escHtml(summary) + '</p>' +
         '</div>';
       }).join("");
     }
 
     function toggleDeepDive(btn, articlesEl) {
-      var open = articlesEl.classList.toggle("visible");
-      btn.textContent = open ? T[lang].closeArticles : T[lang].deepDive;
-      btn.classList.toggle("open", open);
+      var wasOpen = articlesEl.classList.contains("visible");
+      document.querySelectorAll(".articles.visible").forEach(function(el) {
+        el.classList.remove("visible");
+      });
+      document.querySelectorAll(".deep-dive-btn.open").forEach(function(b) {
+        b.textContent = T[lang].deepDive;
+        b.classList.remove("open");
+      });
+      if (!wasOpen) {
+        articlesEl.classList.add("visible");
+        btn.textContent = T[lang].closeArticles;
+        btn.classList.add("open");
+      }
     }
 
     function escHtml(str) {
@@ -716,8 +731,10 @@ data:
 
     document.getElementById("aboutBtn").addEventListener("click", function() {
       var panel = document.getElementById("aboutPanel");
+      var main  = document.getElementById("app");
       var visible = panel.style.display !== "none";
       panel.style.display = visible ? "none" : "block";
+      main.style.display  = visible ? "" : "none";
       document.getElementById("aboutBtn").textContent = visible ? T[lang].about : T[lang].aboutClose;
     });
 
@@ -731,12 +748,8 @@ data:
       lang = lang === "en" ? "cs" : "en";
       localStorage.setItem("ddot-lang", lang);
       applyLang();
-      if (currentDate && document.getElementById("dailyView").style.display !== "none") {
-        var labels = AREA_LABELS[lang] || AREA_LABELS.en;
-        document.querySelectorAll(".card-title").forEach(function(el) {
-          var key = el.closest(".card").querySelector(".deep-dive-btn").dataset.area;
-          el.textContent = labels[key] || key;
-        });
+      if (currentDigestData && document.getElementById("dailyView").style.display !== "none") {
+        renderDigest(currentDigestData);
       }
     });
 

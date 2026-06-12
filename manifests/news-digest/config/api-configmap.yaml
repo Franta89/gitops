@@ -55,6 +55,7 @@ data:
             areas[row["area"]] = {
                 "area": row["area"],
                 "overview": row["overview"],
+                "overview_cs": row.get("overview_cs") or "",
                 "items": [],
             }
         for row in rows_items:
@@ -64,6 +65,7 @@ data:
                     "title": row["title"],
                     "url": row["url"],
                     "summary": row["summary"],
+                    "summary_cs": row.get("summary_cs") or "",
                 })
         for a in areas.values():
             a["items"].sort(key=lambda x: x["rank"])
@@ -82,7 +84,7 @@ data:
 
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT area, overview FROM area_summaries
+                SELECT area, overview, overview_cs FROM area_summaries
                 WHERE digest_id = %s ORDER BY area
             """, (digest_id,))
             summaries = cur.fetchall()
@@ -90,7 +92,7 @@ data:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT a.area AS area_summary_area,
-                       n.rank, n.title, n.url, n.summary
+                       n.rank, n.title, n.url, n.summary, n.summary_cs
                 FROM news_items n
                 JOIN area_summaries a ON a.id = n.area_summary_id
                 WHERE a.digest_id = %s
@@ -141,7 +143,7 @@ data:
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT a.id, a.overview
+                    SELECT a.id, a.overview, a.overview_cs
                     FROM area_summaries a
                     JOIN daily_digests d ON d.id = a.digest_id
                     WHERE d.date = %s AND a.area = %s
@@ -151,7 +153,7 @@ data:
                 raise HTTPException(status_code=404, detail="Area/date not found")
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT rank, title, url, summary
+                    SELECT rank, title, url, summary, summary_cs
                     FROM news_items WHERE area_summary_id = %s
                     ORDER BY rank
                 """, (row["id"],))
@@ -160,6 +162,7 @@ data:
                 "date": str(d),
                 "area": area,
                 "overview": row["overview"],
+                "overview_cs": row.get("overview_cs") or "",
                 "items": list(items),
             }
         finally:
