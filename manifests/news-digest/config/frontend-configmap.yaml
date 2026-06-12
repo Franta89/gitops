@@ -90,7 +90,7 @@ data:
         <span id="footerText"></span>
       </footer>
 
-      <script src="/app.js?v=2"></script>
+      <script src="/app.js?v=3"></script>
     </body>
     </html>
 
@@ -489,20 +489,22 @@ data:
 
     const AREA_LABELS = {
       en: {
-        cloud_computing: "Azure Cloud",
-        ai_development:  "AI Development",
-        world_news:      "World News",
-        it_security:     "IT Security"
+        cloud_computing:   "Cloud Computing",
+        ai_development:    "AI Development",
+        it_security:       "IT Security",
+        financial_markets: "Financial Markets",
+        world_news:        "World News"
       },
       cs: {
-        cloud_computing: "Azure Cloud",
-        ai_development:  "Vyvoj AI",
-        world_news:      "Svetove zpravy",
-        it_security:     "IT Bezpecnost"
+        cloud_computing:   "Cloudove technologie",
+        ai_development:    "Vyvoj AI",
+        it_security:       "IT Bezpecnost",
+        financial_markets: "Financni trhy",
+        world_news:        "Svetove zpravy"
       }
     };
 
-    const AREA_ORDER = ["cloud_computing", "ai_development", "world_news", "it_security"];
+    const AREA_ORDER = ["cloud_computing", "ai_development", "it_security", "financial_markets", "world_news"];
 
     var currentDate = null;
     var currentDigestData = null;

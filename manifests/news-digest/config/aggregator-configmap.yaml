@@ -36,28 +36,36 @@ data:
             '"artificial intelligence" OR "machine learning" OR LLM OR OpenAI OR GPT'
             ' OR "generative AI" OR "foundation model" OR RAG OR transformer OR inference'
         ),
-        "world_news": (
-            'geopolitics OR "world news" OR "international relations" OR "global economy"'
-            ' OR "United Nations" OR "trade war" OR semiconductor OR "supply chain"'
-        ),
         "it_security": (
             'cybersecurity OR "security breach" OR vulnerability OR ransomware'
             ' OR "zero-day" OR "data breach" OR CVE OR exploit OR malware OR CISA'
         ),
+        "financial_markets": (
+            '"stock market" OR "stock exchange" OR "S&P 500" OR "interest rates"'
+            ' OR inflation OR "Federal Reserve" OR "central bank" OR "earnings report"'
+            ' OR IPO OR "bond market" OR "hedge fund" OR "financial markets"'
+        ),
+        "world_news": (
+            'geopolitics OR diplomacy OR "international relations" OR "foreign policy"'
+            ' OR "United Nations" OR "climate change" OR humanitarian OR conflict'
+            ' OR "world news" OR "military" OR "sanctions" OR "peace talks"'
+        ),
     }
 
     TOPICS_FALLBACK = {
-        "cloud_computing": "cloud computing OR Azure OR AWS",
-        "ai_development":  "artificial intelligence OR machine learning",
-        "world_news":      "world news OR international",
-        "it_security":     "cybersecurity OR data breach",
+        "cloud_computing":   "cloud computing OR Azure OR AWS",
+        "ai_development":    "artificial intelligence OR machine learning",
+        "it_security":       "cybersecurity OR data breach",
+        "financial_markets": "stock market OR financial markets",
+        "world_news":        "world news OR international OR geopolitics",
     }
 
     AREA_LABELS = {
-        "cloud_computing": "Azure Cloud",
-        "ai_development":  "AI Development",
-        "world_news":      "World News",
-        "it_security":     "IT Security",
+        "cloud_computing":   "Cloud Computing",
+        "ai_development":    "AI Development",
+        "it_security":       "IT Security",
+        "financial_markets": "Financial Markets",
+        "world_news":        "World News",
     }
 
     # ------------------------------------------------------------------
