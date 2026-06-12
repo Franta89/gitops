@@ -41,9 +41,10 @@ data:
             ' OR "zero-day" OR "data breach" OR CVE OR exploit OR malware OR CISA'
         ),
         "financial_markets": (
-            '"stock market" OR "stock exchange" OR "S&P 500" OR "interest rates"'
-            ' OR inflation OR "Federal Reserve" OR "central bank" OR "earnings report"'
-            ' OR IPO OR "bond market" OR "hedge fund" OR "financial markets"'
+            '"stock market" OR "Wall Street" OR "S&P 500" OR "NASDAQ" OR "Dow Jones"'
+            ' OR "Federal Reserve" OR "central bank" OR "interest rates" OR "earnings"'
+            ' OR IPO OR "bond market" OR "hedge fund" OR "market cap" OR "M&A"'
+            ' OR "quarterly results" OR "investor" OR "shares" OR "valuation"'
         ),
         "world_news": (
             'geopolitics OR diplomacy OR "international relations" OR "foreign policy"'
@@ -222,32 +223,120 @@ data:
         log.info("NewsAPI returned %d results for query: %s", len(results), query[:60])
         return results
 
+    # Per-area prompt context: persona, what to select, how to summarise, how to synthesise
+    AREA_PROMPTS = {
+        "cloud_computing": {
+            "persona": "a principal cloud architect and infrastructure engineer",
+            "select": (
+                "architectural announcements, cloud provider releases, Kubernetes/container "
+                "updates, serverless and platform engineering shifts, performance benchmarks, "
+                "and infrastructure product launches"
+            ),
+            "summarize": (
+                "Cite cloud provider names, service names, and measurable metrics "
+                "(latency, cost, throughput). Explain architectural implications and "
+                "operational impact for platform teams."
+            ),
+            "synthesize": (
+                "Identify specific platform shifts, vendor movements, and "
+                "infrastructure engineering implications."
+            ),
+        },
+        "ai_development": {
+            "persona": "a principal AI/ML engineer and researcher",
+            "select": (
+                "model releases, benchmark results, training/inference improvements, "
+                "framework updates, API changes, and research breakthroughs"
+            ),
+            "summarize": (
+                "Cite model names, parameter counts, benchmark scores (MMLU, HumanEval etc.), "
+                "and architectural innovations. Explain engineering implications for ML teams."
+            ),
+            "synthesize": (
+                "Identify convergent model architecture trends, tooling shifts, and "
+                "concrete implications for AI engineering teams."
+            ),
+        },
+        "it_security": {
+            "persona": "a principal security engineer and threat analyst",
+            "select": (
+                "CVE disclosures, active exploits, patch releases, threat actor campaigns, "
+                "data breaches, ransomware incidents, and regulatory/compliance changes"
+            ),
+            "summarize": (
+                "Cite CVE IDs, CVSS scores, affected product versions, and patch availability. "
+                "Explain attack vectors, affected components, and remediation steps."
+            ),
+            "synthesize": (
+                "Identify active threat patterns, systemic vulnerabilities, and "
+                "priority remediation actions for security teams."
+            ),
+        },
+        "financial_markets": {
+            "persona": "a senior financial analyst and market strategist",
+            "select": (
+                "earnings reports, IPO filings or pricings, M&A deals, central bank decisions, "
+                "significant index or stock moves, analyst upgrades/downgrades, regulatory "
+                "actions on financial institutions, and major investor activity. "
+                "INCLUDE tech companies when the news is financially significant (IPO, earnings beat, "
+                "major M&A). EXCLUDE pure technology product announcements with no direct market impact."
+            ),
+            "summarize": (
+                "Cite specific figures: revenue, EPS, market cap change, deal value, "
+                "interest rate level, index % move, or trading volume. "
+                "Explain market implications, investor sentiment, and sector impact. "
+                "Do NOT discuss the technology itself — focus on the financial angle."
+            ),
+            "synthesize": (
+                "Identify market-moving trends, sector rotations, macro signals, and "
+                "investment implications across the selected stories."
+            ),
+        },
+        "world_news": {
+            "persona": "a senior international affairs correspondent and geopolitical analyst",
+            "select": (
+                "diplomatic developments, geopolitical conflicts, peace negotiations, "
+                "humanitarian crises, climate agreements, military events, and major "
+                "international policy shifts. "
+                "EXCLUDE technology product news and financial market reports unless "
+                "directly tied to geopolitical consequences."
+            ),
+            "summarize": (
+                "Name the countries, parties, leaders, and agreements involved. "
+                "State dates, casualty figures, or treaty terms where available. "
+                "Explain geopolitical implications and regional impact."
+            ),
+            "synthesize": (
+                "Identify geopolitical fault lines, diplomatic shifts, and "
+                "humanitarian implications across the selected stories."
+            ),
+        },
+    }
+
     # ------------------------------------------------------------------
-    # AI summarisation — picks 3-5 articles with technical depth
+    # AI summarisation — area-aware persona and selection criteria
     # ------------------------------------------------------------------
-    def summarize_area(client: AzureOpenAI, area_label: str,
+    def summarize_area(client: AzureOpenAI, area_key: str, area_label: str,
                        candidates: list[dict], known_urls: set[str]) -> dict:
         fresh = [c for c in candidates if c["url"] not in known_urls]
         if not fresh:
             log.warning("No fresh articles for %s — falling back to all candidates", area_label)
             fresh = candidates
 
+        ctx = AREA_PROMPTS.get(area_key, AREA_PROMPTS["cloud_computing"])
+
         prompt = (
-            f'You are a principal engineer and technical analyst covering "{area_label}".\n'
+            f'You are {ctx["persona"]} covering "{area_label}".\n'
             f'Below are {len(fresh)} recent news articles from the past 25 hours.\n\n'
             'Task:\n'
-            '1. Select 3-5 articles with the highest technical significance. '
-            'Prioritise: architectural announcements, protocol/API changes, CVE disclosures, '
-            'benchmark results, infrastructure shifts, and major product releases. '
+            f'1. Select 3-5 articles. Prioritise: {ctx["select"]}. '
             'Skip marketing copy, opinion pieces, and near-duplicate stories.\n'
-            '2. For each selected article write a precise technical summary (4-6 sentences). '
-            'You MUST cite specific version numbers, CVE IDs, product names, and measurable '
-            'metrics where available. Name affected components, explain root cause or mechanism, '
-            'and state concrete architectural or operational impact. '
-            'Do NOT use vague phrases like "highlights the importance of" or "showcases potential".\n'
-            '3. Write a concise technical synthesis (3-5 sentences) identifying specific '
-            'architectural shifts, API/protocol changes, and concrete engineering implications. '
-            'Be direct and specific — name products, versions, and patterns.\n'
+            f'2. For each selected article write a precise summary (4-6 sentences). '
+            f'{ctx["summarize"]} '
+            'Do NOT use vague phrases like "highlights the importance of".\n'
+            f'3. Write a concise synthesis paragraph (3-5 sentences). '
+            f'{ctx["synthesize"]} '
+            'Be direct — use names, numbers, and concrete facts.\n'
             '4. Translate the "summary" and "overview" fields into Czech for the _cs variants.\n\n'
             'Return ONLY valid JSON — no markdown fences, no extra keys:\n'
             '{\n'
@@ -381,7 +470,7 @@ data:
             if not candidates:
                 log.error("No NewsAPI results for %s even with fallback — skipping", area)
                 continue
-            result = summarize_area(client, AREA_LABELS[area], candidates, known_urls)
+            result = summarize_area(client, area, AREA_LABELS[area], candidates, known_urls)
             area_summary_id = upsert_area_summary(
                 conn, digest_id, area, result["overview"], result.get("overview_cs", "")
             )
