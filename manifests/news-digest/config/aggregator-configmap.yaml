@@ -29,26 +29,32 @@ data:
 
     TOPICS = {
         "cloud_computing": (
-            '"AWS" OR "Azure" OR "Google Cloud" OR "GCP" OR "Kubernetes" OR "cloud computing"'
-            ' OR "cloud infrastructure" OR "cloud native" OR "serverless" OR "multi-cloud"'
-            ' OR "FinOps" OR "platform engineering"'
+            'Azure OR AWS OR "Google Cloud" OR Kubernetes OR "cloud computing"'
+            ' OR "cloud native" OR serverless OR "platform engineering"'
         ),
         "ai_development": (
-            '"artificial intelligence" OR "machine learning" OR "LLM" OR "OpenAI" OR "GPT"'
-            ' OR "generative AI" OR "foundation model" OR "RAG" OR "transformer" OR "inference"'
+            '"artificial intelligence" OR "machine learning" OR LLM OR OpenAI OR GPT'
+            ' OR "generative AI" OR "foundation model" OR RAG OR transformer OR inference'
         ),
         "world_news": (
             'geopolitics OR "world news" OR "international relations" OR "global economy"'
-            ' OR "United Nations" OR "trade war" OR "semiconductor" OR "supply chain"'
+            ' OR "United Nations" OR "trade war" OR semiconductor OR "supply chain"'
         ),
         "it_security": (
-            'cybersecurity OR "security breach" OR "vulnerability" OR "ransomware"'
-            ' OR "zero-day" OR "data breach" OR "CVE" OR "exploit" OR "malware" OR "CISA"'
+            'cybersecurity OR "security breach" OR vulnerability OR ransomware'
+            ' OR "zero-day" OR "data breach" OR CVE OR exploit OR malware OR CISA'
         ),
     }
 
+    TOPICS_FALLBACK = {
+        "cloud_computing": "cloud computing OR Azure OR AWS",
+        "ai_development":  "artificial intelligence OR machine learning",
+        "world_news":      "world news OR international",
+        "it_security":     "cybersecurity OR data breach",
+    }
+
     AREA_LABELS = {
-        "cloud_computing": "Cloud Computing",
+        "cloud_computing": "Azure Cloud",
         "ai_development":  "AI Development",
         "world_news":      "World News",
         "it_security":     "IT Security",
@@ -342,7 +348,10 @@ data:
             log.info("Processing area: %s", area)
             candidates = newsapi_search(query, since)
             if not candidates:
-                log.warning("No NewsAPI results for %s — skipping", area)
+                log.warning("No results for %s — retrying with fallback query", area)
+                candidates = newsapi_search(TOPICS_FALLBACK[area], since)
+            if not candidates:
+                log.error("No NewsAPI results for %s even with fallback — skipping", area)
                 continue
             result = summarize_area(client, AREA_LABELS[area], candidates, known_urls)
             area_summary_id = upsert_area_summary(

@@ -482,13 +482,13 @@ data:
 
     const AREA_LABELS = {
       en: {
-        cloud_computing: "Cloud Computing",
+        cloud_computing: "Azure Cloud",
         ai_development:  "AI Development",
         world_news:      "World News",
         it_security:     "IT Security"
       },
       cs: {
-        cloud_computing: "Cloud Computing",
+        cloud_computing: "Azure Cloud",
         ai_development:  "Vyvoj AI",
         world_news:      "Svetove zpravy",
         it_security:     "IT Bezpecnost"
