@@ -1,5 +1,5 @@
 # kube-prometheus-stack: Prometheus + Grafana + node-exporter + kube-state-metrics.
-# Wave 3. Grafana: https://kafka-puzzle.swedencentral.cloudapp.azure.com/grafana  login: admin / grafana-admin-changeme
+# Wave 3. Grafana: https://dailydoseoftech.org/grafana  login: admin / grafana-admin-changeme
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -34,15 +34,15 @@ spec:
               cert-manager.io/cluster-issuer: letsencrypt-prod
               nginx.ingress.kubernetes.io/ssl-redirect: "true"
             hosts:
-              - kafka-puzzle.swedencentral.cloudapp.azure.com
+              - dailydoseoftech.org
             path: /grafana
             tls:
               - secretName: grafana-tls
                 hosts:
-                  - kafka-puzzle.swedencentral.cloudapp.azure.com
+                  - dailydoseoftech.org
           grafana.ini:
             server:
-              root_url: "https://kafka-puzzle.swedencentral.cloudapp.azure.com/grafana"
+              root_url: "https://dailydoseoftech.org/grafana"
               serve_from_sub_path: true
         prometheus:
           prometheusSpec:
