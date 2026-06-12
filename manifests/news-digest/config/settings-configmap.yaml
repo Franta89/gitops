@@ -8,6 +8,6 @@ metadata:
   namespace: news-digest
 data:
   OPENAI_ENDPOINT: "https://oai-ddot-dev-swc-001-fa2dd.openai.azure.com/"
-  OPENAI_DEPLOYMENT: "gpt-4o-mini"
-  OPENAI_API_VERSION: "2024-10-21"
+  OPENAI_DEPLOYMENT: "gpt-4.1-mini"
+  OPENAI_API_VERSION: "2025-01-01-preview"
   LOG_LEVEL: "INFO"

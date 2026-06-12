@@ -29,7 +29,7 @@ data:
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Daily Dose of Tech</title>
-      <meta name="description" content="Daily Dose of Tech — AI-curated news digest covering Azure Cloud, AI Development, World News, and IT Security." />
+      <meta name="description" content="Daily Dose of Tech — AI-curated news digest." />
       <link rel="stylesheet" href="/style.css" />
     </head>
     <body>
@@ -37,60 +37,42 @@ data:
         <div class="header-inner">
           <div class="brand">
             <h1>Daily Dose of Tech</h1>
-            <span class="tagline">AI-curated · Published daily at 07:00 CET</span>
+            <span class="tagline" id="tagline"></span>
           </div>
           <div class="controls">
-            <label for="datePicker">Browse:</label>
+            <label for="datePicker" id="browseLabel"></label>
             <input type="date" id="datePicker" />
-            <button id="monthlyBtn">Monthly Summary</button>
-            <button id="aboutBtn" class="about-toggle">About</button>
+            <button id="monthlyBtn"></button>
+            <button id="aboutBtn" class="about-toggle"></button>
+            <button id="langBtn" class="lang-toggle"></button>
+            <button id="themeBtn" class="theme-toggle"></button>
           </div>
         </div>
         <p id="digestDate" class="digest-date"></p>
       </header>
 
-      <!-- About / disclaimer panel -->
       <div id="aboutPanel" class="about-panel" style="display:none">
         <div class="about-inner">
-          <h2>About Daily Dose of Tech</h2>
-          <p>
-            <strong>Daily Dose of Tech (ddot)</strong> is a <em>development and test project</em>
-            exploring Kubernetes orchestration and Azure AI services. It is <strong>not a production
-            system</strong> and may be unavailable or updated without notice.
-          </p>
-          <p>
-            The app runs on an <strong>Azure Kubernetes Service (AKS)</strong> cluster managed with
-            <a href="https://argoproj.github.io/cd/" target="_blank" rel="noopener">Argo CD</a>
-            (GitOps). News is fetched daily via the
-            <strong>NewsAPI</strong> and summarised by
-            <strong>Azure OpenAI (GPT-4o-mini)</strong> using
-            <strong>Azure Workload Identity</strong> for keyless authentication.
-          </p>
-          <ul>
-            <li>Infrastructure: AKS (Free tier), Azure Sweden Central</li>
-            <li>AI: Azure OpenAI GPT-4o-mini via Azure Foundry</li>
-            <li>GitOps: Argo CD, Strimzi/Kafka, cert-manager, NGINX Ingress</li>
-            <li>Purpose: dev/test sandbox — Kubernetes &amp; AI services integration</li>
-          </ul>
-          <p class="about-footer">
-            Content is AI-generated and provided for informational purposes only.
-            Always verify news with primary sources.
-          </p>
+          <h2 id="aboutTitle"></h2>
+          <p id="aboutDesc1"></p>
+          <p id="aboutDesc2"></p>
+          <ul id="aboutList"></ul>
+          <p class="about-footer" id="aboutFooter"></p>
+          <h3 class="arch-title" id="archTitle"></h3>
+          <pre class="arch-diagram" id="archDiagram"></pre>
         </div>
       </div>
 
       <main id="app">
-        <div id="loadingMsg" class="loading">Loading today's digest…</div>
+        <div id="loadingMsg" class="loading"></div>
         <div id="errorMsg" class="error" style="display:none"></div>
 
-        <!-- Daily view -->
         <div id="dailyView" style="display:none">
           <div class="grid" id="areaGrid"></div>
         </div>
 
-        <!-- Monthly view -->
         <div id="monthlyView" style="display:none">
-          <button class="back-btn" id="backBtn">← Back to Daily</button>
+          <button class="back-btn" id="backBtn"></button>
           <div class="monthly-content">
             <h2 id="monthlyTitle"></h2>
             <div id="monthlyContent"></div>
@@ -99,7 +81,7 @@ data:
       </main>
 
       <footer class="site-footer">
-        <span>Daily Dose of Tech &mdash; dev/test project &mdash; AI-generated content, verify with primary sources</span>
+        <span id="footerText"></span>
       </footer>
 
       <script src="/app.js"></script>
@@ -109,16 +91,75 @@ data:
   style.css: |
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg-primary:        #0f1117;
+      --bg-secondary:      #1a1d27;
+      --bg-tertiary:       #2d3748;
+      --border:            #2d3748;
+      --border-light:      #4a5568;
+      --text-primary:      #e2e8f0;
+      --text-secondary:    #cbd5e0;
+      --text-muted:        #a0aec0;
+      --text-dim:          #718096;
+      --text-faint:        #4a5568;
+      --accent:            #63b3ed;
+      --accent-link:       #90cdf4;
+      --article-bg:        #0f1117;
+      --input-bg:          #2d3748;
+      --input-border:      #4a5568;
+      --btn-primary:       #2b6cb0;
+      --btn-primary-hover: #3182ce;
+      --btn-muted:         #2d3748;
+      --btn-muted-hover:   #4a5568;
+      --btn-green:         #276749;
+      --btn-green-hover:   #2f855a;
+      --btn-amber:         #744210;
+      --btn-amber-hover:   #975a16;
+      --badge-bg:          #2d3748;
+      --badge-text:        #a0aec0;
+      --rank-color:        #f6ad55;
+    }
+
+    body.light {
+      --bg-primary:        #f7fafc;
+      --bg-secondary:      #ffffff;
+      --bg-tertiary:       #edf2f7;
+      --border:            #e2e8f0;
+      --border-light:      #cbd5e0;
+      --text-primary:      #1a202c;
+      --text-secondary:    #2d3748;
+      --text-muted:        #4a5568;
+      --text-dim:          #718096;
+      --text-faint:        #a0aec0;
+      --accent:            #2b6cb0;
+      --accent-link:       #2c5282;
+      --article-bg:        #f0f4f8;
+      --input-bg:          #ffffff;
+      --input-border:      #cbd5e0;
+      --btn-primary:       #2b6cb0;
+      --btn-primary-hover: #2c5282;
+      --btn-muted:         #e2e8f0;
+      --btn-muted-hover:   #cbd5e0;
+      --btn-green:         #276749;
+      --btn-green-hover:   #2f855a;
+      --btn-amber:         #c05621;
+      --btn-amber-hover:   #9c4221;
+      --badge-bg:          #e2e8f0;
+      --badge-text:        #4a5568;
+      --rank-color:        #c05621;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: var(--bg-primary);
+      color: var(--text-primary);
       min-height: 100vh;
+      transition: background 0.2s, color 0.2s;
     }
 
     header {
-      background: #1a1d27;
-      border-bottom: 1px solid #2d3748;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
       padding: 1.25rem 1.5rem;
     }
 
@@ -133,32 +174,52 @@ data:
     }
 
     .brand { display: flex; flex-direction: column; gap: 0.15rem; }
-    h1 { font-size: 1.5rem; color: #63b3ed; font-weight: 700; }
-    .tagline { font-size: 0.75rem; color: #718096; letter-spacing: 0.03em; }
+    h1 { font-size: 1.5rem; color: var(--accent); font-weight: 700; }
+    .tagline { font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.03em; }
 
-    .controls {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .controls label { font-size: 0.875rem; color: #a0aec0; }
+    .controls { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .controls label { font-size: 0.875rem; color: var(--text-muted); }
 
     #datePicker {
-      background: #2d3748;
-      color: #e2e8f0;
-      border: 1px solid #4a5568;
+      background: var(--input-bg);
+      color: var(--text-primary);
+      border: 1px solid var(--input-border);
       border-radius: 6px;
       padding: 0.35rem 0.6rem;
       font-size: 0.875rem;
     }
 
-    .about-toggle { background: #2d3748; }
-    .about-toggle:hover { background: #4a5568; }
+    button {
+      background: var(--btn-primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.4rem 1rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: background 0.15s;
+    }
+    button:hover { background: var(--btn-primary-hover); }
+
+    .about-toggle, .lang-toggle, .theme-toggle {
+      background: var(--btn-muted);
+      color: var(--text-primary);
+      min-width: 4.5rem;
+    }
+    .about-toggle:hover, .lang-toggle:hover, .theme-toggle:hover {
+      background: var(--btn-muted-hover);
+    }
+
+    .digest-date {
+      max-width: 1200px;
+      margin: 0.4rem auto 0;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
 
     .about-panel {
-      background: #1a1d27;
-      border-bottom: 1px solid #2d3748;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
     }
     .about-inner {
       max-width: 1200px;
@@ -168,38 +229,37 @@ data:
       flex-direction: column;
       gap: 0.75rem;
     }
-    .about-inner h2 { font-size: 1rem; color: #63b3ed; }
-    .about-inner p, .about-inner li { font-size: 0.875rem; line-height: 1.6; color: #a0aec0; }
+    .about-inner h2 { font-size: 1rem; color: var(--accent); }
+    .about-inner p, .about-inner li {
+      font-size: 0.875rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
     .about-inner ul { padding-left: 1.25rem; }
-    .about-inner a { color: #90cdf4; }
-    .about-footer { font-style: italic; color: #718096 !important; }
+    .about-inner a { color: var(--accent-link); }
+    .about-footer { font-style: italic; color: var(--text-dim) !important; }
+
+    .arch-title { font-size: 0.9rem; color: var(--accent); margin-top: 0.5rem; }
+    .arch-diagram {
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 0.72rem;
+      line-height: 1.4;
+      color: var(--text-secondary);
+      background: var(--article-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      white-space: pre;
+    }
 
     .site-footer {
       text-align: center;
       padding: 1.5rem;
       font-size: 0.75rem;
-      color: #4a5568;
-      border-top: 1px solid #2d3748;
+      color: var(--text-faint);
+      border-top: 1px solid var(--border);
       margin-top: 3rem;
-    }
-
-    button {
-      background: #2b6cb0;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 0.4rem 1rem;
-      cursor: pointer;
-      font-size: 0.875rem;
-      transition: background 0.15s;
-    }
-    button:hover { background: #3182ce; }
-
-    .digest-date {
-      max-width: 1200px;
-      margin: 0.4rem auto 0;
-      font-size: 0.85rem;
-      color: #718096;
     }
 
     main { max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem; }
@@ -208,7 +268,7 @@ data:
       text-align: center;
       padding: 3rem;
       font-size: 1.1rem;
-      color: #a0aec0;
+      color: var(--text-muted);
     }
     .error { color: #fc8181; }
 
@@ -219,8 +279,8 @@ data:
     }
 
     .card {
-      background: #1a1d27;
-      border: 1px solid #2d3748;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.25rem;
       display: flex;
@@ -228,104 +288,72 @@ data:
       gap: 0.75rem;
     }
 
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .card-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #63b3ed;
-    }
-
+    .card-header { display: flex; justify-content: space-between; align-items: center; }
+    .card-title { font-size: 1rem; font-weight: 600; color: var(--accent); }
     .card-badge {
       font-size: 0.7rem;
-      background: #2d3748;
-      color: #a0aec0;
+      background: var(--badge-bg);
+      color: var(--badge-text);
       padding: 0.15rem 0.5rem;
       border-radius: 99px;
     }
-
-    .card-overview {
-      font-size: 0.875rem;
-      line-height: 1.6;
-      color: #cbd5e0;
-    }
+    .card-overview { font-size: 0.875rem; line-height: 1.6; color: var(--text-secondary); }
 
     .deep-dive-btn {
       align-self: flex-start;
-      background: #276749;
+      background: var(--btn-green);
       font-size: 0.8rem;
       padding: 0.35rem 0.8rem;
     }
-    .deep-dive-btn:hover { background: #2f855a; }
-    .deep-dive-btn.open { background: #744210; }
-    .deep-dive-btn.open:hover { background: #975a16; }
+    .deep-dive-btn:hover { background: var(--btn-green-hover); }
+    .deep-dive-btn.open { background: var(--btn-amber); }
+    .deep-dive-btn.open:hover { background: var(--btn-amber-hover); }
 
     .articles {
       display: none;
       flex-direction: column;
       gap: 1rem;
-      border-top: 1px solid #2d3748;
+      border-top: 1px solid var(--border);
       padding-top: 1rem;
     }
     .articles.visible { display: flex; }
 
     .article {
-      background: #0f1117;
-      border: 1px solid #2d3748;
+      background: var(--article-bg);
+      border: 1px solid var(--border);
       border-radius: 6px;
       padding: 0.75rem;
     }
-
     .article-rank {
       font-size: 0.7rem;
       font-weight: 700;
-      color: #f6ad55;
+      color: var(--rank-color);
       text-transform: uppercase;
       margin-bottom: 0.25rem;
     }
-
-    .article-title {
-      font-size: 0.875rem;
-      font-weight: 600;
-      margin-bottom: 0.4rem;
-    }
-
-    .article-title a {
-      color: #90cdf4;
-      text-decoration: none;
-    }
+    .article-title { font-size: 0.875rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .article-title a { color: var(--accent-link); text-decoration: none; }
     .article-title a:hover { text-decoration: underline; }
+    .article-summary { font-size: 0.8rem; line-height: 1.55; color: var(--text-muted); }
 
-    .article-summary { font-size: 0.8rem; line-height: 1.55; color: #a0aec0; }
-
-    /* Monthly view */
     .back-btn {
-      background: #2d3748;
+      background: var(--btn-muted);
+      color: var(--text-primary);
       margin-bottom: 1.5rem;
     }
-    .back-btn:hover { background: #4a5568; }
+    .back-btn:hover { background: var(--btn-muted-hover); }
 
     .monthly-content {
-      background: #1a1d27;
-      border: 1px solid #2d3748;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.5rem;
     }
-
-    #monthlyTitle {
-      font-size: 1.2rem;
-      color: #63b3ed;
-      margin-bottom: 1rem;
-    }
-
+    #monthlyTitle { font-size: 1.2rem; color: var(--accent); margin-bottom: 1rem; }
     #monthlyContent {
       font-size: 0.9rem;
       line-height: 1.7;
-      color: #cbd5e0;
+      color: var(--text-secondary);
       white-space: pre-wrap;
     }
 
@@ -335,21 +363,190 @@ data:
     }
 
   app.js: |
-    const AREA_LABELS = {
-      azure_cloud:    "Azure Cloud Computing",
-      ai_development: "AI Development",
-      world_news:     "World News",
-      it_security:    "IT Security",
+    const ARCH_DIAGRAM = [
+      "     Internet",
+      "         |",
+      "         v",
+      "  +------------------+",
+      "  |    Cloudflare    |  DNS proxy . WAF . CDN",
+      "  +--------+---------+",
+      "           |  HTTPS  (Let's Encrypt TLS, DNS-01 via Cloudflare API)",
+      "           v",
+      "  +---------------------------------------------------------------------+",
+      "  |           Azure Kubernetes Service  (AKS, Sweden Central)          |",
+      "  |                                                                     |",
+      "  |  Argo CD <-- GitOps sync <-- GitHub (gitops repo)                  |",
+      "  |  (sync waves 0-5, app-of-apps pattern)                             |",
+      "  |                                                                     |",
+      "  |  +----------------------+   Strimzi Operator / Kafka (KRaft)       |",
+      "  |  |  NGINX Ingress Ctrl  |                                           |",
+      "  |  +----------+----------+   cert-manager . Prometheus . Grafana     |",
+      "  |             |                                                       |",
+      "  |   +---------+----------+   +-------------------------+             |",
+      "  |   |  Frontend (nginx)  |   |   API  (FastAPI/uvicorn)|             |",
+      "  |   +--------------------+   +-----------+-------------+             |",
+      "  |                                         |                           |",
+      "  |                              +----------v----------+                |",
+      "  |                              |  PostgreSQL 16      |                |",
+      "  |                              |  (StatefulSet+PVC)  |                |",
+      "  |                              +----------^----------+                |",
+      "  |                                         |                           |",
+      "  |                         +--------------+---------------+            |",
+      "  |                         |   CronJob -- aggregator.py   |            |",
+      "  |                         |   06:10 CET daily            |            |",
+      "  |                         +--------------+---------------+            |",
+      "  |                                        |                            |",
+      "  |  +-------------------------------------+------------------------+   |",
+      "  |  |  Azure Key Vault CSI driver --> K8s Secrets (envFrom)       |   |",
+      "  |  |  Azure Workload Identity --> keyless auth to Azure services  |   |",
+      "  |  +------------------------------------------------------------+    |",
+      "  +---------------------------------------------------------------------+",
+      "                |                                   |",
+      "                v                                   v",
+      "  +----------------------+          +---------------------------+",
+      "  |   NewsAPI.org        |          |  Azure AI Foundry         |",
+      "  |   REST API           |          |  GPT-4.1-mini             |",
+      "  |   25-hour window     |          |  (GlobalStandard tier)    |",
+      "  |   relevancy sort     |          |  Azure Cognitive Svcs     |",
+      "  +----------------------+          +---------------------------+"
+    ].join("\n");
+
+    const T = {
+      en: {
+        browse:         "Browse:",
+        monthly:        "Monthly Summary",
+        about:          "About",
+        aboutClose:     "Close About",
+        backBtn:        "<- Back to Daily",
+        deepDive:       "Deep Dive v",
+        closeArticles:  "Close ^",
+        loading:        "Loading today's digest...",
+        loadingGeneric: "Loading...",
+        loadingMonthly: "Loading monthly summary...",
+        digestDate:     function(d) { return "Digest for " + d + " -- generated at 06:10 CET"; },
+        errorDigest:    "Could not load digest:",
+        errorMonthly:   "Monthly summary not available:",
+        monthlyTitle:   function(y, m) { return "Monthly Summary -- " + y + "-" + String(m).padStart(2,"0"); },
+        tagline:        "AI-curated . Published daily at 07:00 CET",
+        footerText:     "Daily Dose of Tech -- dev/test project -- AI-generated content, verify with primary sources",
+        themeLight:     "Light",
+        themeDark:      "Dark",
+        langSwitch:     "CZ",
+        aboutTitle:     "About Daily Dose of Tech",
+        aboutDesc1:     "Daily Dose of Tech (ddot) is a development and test project exploring Kubernetes orchestration and Azure AI services. It is not a production system and may be unavailable or updated without notice.",
+        aboutDesc2:     "The app runs on Azure Kubernetes Service (AKS) managed with Argo CD (GitOps). News is fetched daily via NewsAPI and summarised by Azure AI Foundry (GPT-4.1-mini) using Azure Workload Identity for keyless authentication.",
+        aboutList:      [
+          "Infrastructure: AKS (Free tier), Azure Sweden Central",
+          "AI: Azure AI Foundry GPT-4.1-mini (GlobalStandard)",
+          "GitOps: Argo CD, Strimzi/Kafka, cert-manager, NGINX Ingress",
+          "Secrets: Azure Key Vault + CSI driver (keyless via Workload Identity)",
+          "Purpose: dev/test sandbox -- Kubernetes and Azure AI services integration"
+        ],
+        aboutFooter:    "Content is AI-generated and provided for informational purposes only. Always verify news with primary sources.",
+        archTitle:      "Architecture"
+      },
+      cs: {
+        browse:         "Datum:",
+        monthly:        "Mesicni prehled",
+        about:          "O aplikaci",
+        aboutClose:     "Zavrit",
+        backBtn:        "<- Zpet",
+        deepDive:       "Zobrazit v",
+        closeArticles:  "Skryt ^",
+        loading:        "Nacitam dnesni prehled...",
+        loadingGeneric: "Nacitam...",
+        loadingMonthly: "Nacitam mesicni prehled...",
+        digestDate:     function(d) { return "Prehled pro " + d + " -- vygenerovano v 06:10 SEC"; },
+        errorDigest:    "Prehled se nepodarilo nacist:",
+        errorMonthly:   "Mesicni prehled neni dostupny:",
+        monthlyTitle:   function(y, m) { return "Mesicni prehled -- " + y + "-" + String(m).padStart(2,"0"); },
+        tagline:        "AI-kuratorovano . Publikovano denne v 07:00 SEC",
+        footerText:     "Daily Dose of Tech -- vyvojovy projekt -- obsah generovany AI, overujte primarnimi zdroji",
+        themeLight:     "Svetly",
+        themeDark:      "Tmavy",
+        langSwitch:     "EN",
+        aboutTitle:     "O aplikaci Daily Dose of Tech",
+        aboutDesc1:     "Daily Dose of Tech (ddot) je vyvojovy a testovaci projekt zkoumajici orchestraci Kubernetes a sluzby Azure AI. Neni to produkcni system a muze byt nedostupny nebo aktualizovan bez upozorneni.",
+        aboutDesc2:     "Aplikace bezi na clusteru Azure Kubernetes Service (AKS) spravovanem pres Argo CD (GitOps). Zpravy jsou kazd odenne nacitany pres NewsAPI a sumarizovany pomoci Azure AI Foundry (GPT-4.1-mini) s keyless autentizaci pres Azure Workload Identity.",
+        aboutList:      [
+          "Infrastruktura: AKS (Free tier), Azure Svedsko - stred",
+          "AI: Azure AI Foundry GPT-4.1-mini (GlobalStandard)",
+          "GitOps: Argo CD, Strimzi/Kafka, cert-manager, NGINX Ingress",
+          "Tajne klice: Azure Key Vault + CSI driver (keyless pres Workload Identity)",
+          "Ucel: vyvojovy sandbox -- integrace Kubernetes a Azure AI sluzeb"
+        ],
+        aboutFooter:    "Obsah je generovan umelou inteligenci a slouzi pouze k informacnim ucelum. Vzdy overujte zpravy z primarnich zdroju.",
+        archTitle:      "Architektura"
+      }
     };
 
-    const AREA_ORDER = ["azure_cloud", "ai_development", "world_news", "it_security"];
+    const AREA_LABELS = {
+      en: {
+        cloud_computing: "Cloud Computing",
+        ai_development:  "AI Development",
+        world_news:      "World News",
+        it_security:     "IT Security"
+      },
+      cs: {
+        cloud_computing: "Cloud Computing",
+        ai_development:  "Vyvoj AI",
+        world_news:      "Svetove zpravy",
+        it_security:     "IT Bezpecnost"
+      }
+    };
 
-    let currentDate = null;
+    const AREA_ORDER = ["cloud_computing", "ai_development", "world_news", "it_security"];
+
+    var currentDate = null;
+    var lang  = localStorage.getItem("ddot-lang")  || "en";
+    var theme = localStorage.getItem("ddot-theme") || "dark";
+
+    function applyTheme() {
+      document.body.classList.toggle("light", theme === "light");
+      var t = T[lang];
+      document.getElementById("themeBtn").textContent = theme === "light" ? t.themeDark : t.themeLight;
+    }
+
+    function applyLang() {
+      var t = T[lang];
+      document.getElementById("tagline").textContent     = t.tagline;
+      document.getElementById("browseLabel").textContent = t.browse;
+      document.getElementById("monthlyBtn").textContent  = t.monthly;
+      document.getElementById("footerText").textContent  = t.footerText;
+      document.getElementById("langBtn").textContent     = t.langSwitch;
+      document.getElementById("themeBtn").textContent    = theme === "light" ? t.themeDark : t.themeLight;
+      document.getElementById("backBtn").textContent     = t.backBtn;
+
+      var aboutVisible = document.getElementById("aboutPanel").style.display !== "none";
+      document.getElementById("aboutBtn").textContent = aboutVisible ? t.aboutClose : t.about;
+
+      document.getElementById("aboutTitle").textContent  = t.aboutTitle;
+      document.getElementById("aboutDesc1").textContent  = t.aboutDesc1;
+      document.getElementById("aboutDesc2").textContent  = t.aboutDesc2;
+      document.getElementById("aboutFooter").textContent = t.aboutFooter;
+      document.getElementById("archTitle").textContent   = t.archTitle;
+      document.getElementById("archDiagram").textContent = ARCH_DIAGRAM;
+
+      var ul = document.getElementById("aboutList");
+      ul.innerHTML = t.aboutList.map(function(item) {
+        return "<li>" + escHtml(item) + "</li>";
+      }).join("");
+
+      if (currentDate) {
+        document.getElementById("digestDate").textContent = t.digestDate(currentDate);
+      }
+
+      document.querySelectorAll(".deep-dive-btn").forEach(function(btn) {
+        if (!btn.disabled) {
+          btn.textContent = btn.classList.contains("open") ? t.closeArticles : t.deepDive;
+        }
+      });
+    }
 
     async function api(path) {
-      const res = await fetch(path);
+      var res = await fetch(path);
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        var err = await res.json().catch(function() { return { detail: res.statusText }; });
         throw new Error(err.detail || res.statusText);
       }
       return res.json();
@@ -357,7 +554,7 @@ data:
 
     function showError(msg) {
       document.getElementById("loadingMsg").style.display = "none";
-      const el = document.getElementById("errorMsg");
+      var el = document.getElementById("errorMsg");
       el.textContent = msg;
       el.style.display = "block";
     }
@@ -369,57 +566,60 @@ data:
     function renderDigest(data) {
       hideError();
       currentDate = data.date;
-      document.getElementById("digestDate").textContent =
-        `Digest for ${data.date} — generated at 06:10 CET`;
+      document.getElementById("digestDate").textContent = T[lang].digestDate(data.date);
       document.getElementById("datePicker").value = data.date;
 
-      const grid = document.getElementById("areaGrid");
+      var grid = document.getElementById("areaGrid");
       grid.innerHTML = "";
 
-      const areaMap = {};
-      for (const a of data.areas) areaMap[a.area] = a;
+      var areaMap = {};
+      for (var i = 0; i < data.areas.length; i++) {
+        areaMap[data.areas[i].area] = data.areas[i];
+      }
 
-      for (const key of AREA_ORDER) {
-        const area = areaMap[key];
-        if (!area) continue;
-        grid.appendChild(buildCard(area, key));
+      for (var j = 0; j < AREA_ORDER.length; j++) {
+        var key = AREA_ORDER[j];
+        if (areaMap[key]) grid.appendChild(buildCard(areaMap[key], key));
       }
 
       document.getElementById("loadingMsg").style.display = "none";
-      document.getElementById("dailyView").style.display = "block";
+      document.getElementById("dailyView").style.display  = "block";
       document.getElementById("monthlyView").style.display = "none";
     }
 
     function buildCard(area, key) {
-      const card = document.createElement("div");
+      var card = document.createElement("div");
       card.className = "card";
+      var labels = AREA_LABELS[lang] || AREA_LABELS.en;
+      var label = labels[key] || key;
+      var count = area.items ? area.items.length : 0;
+      var badge = count > 0 ? count + " articles" : "articles";
 
-      card.innerHTML = `
-        <div class="card-header">
-          <span class="card-title">${AREA_LABELS[key] || key}</span>
-          <span class="card-badge">3 articles</span>
-        </div>
-        <p class="card-overview">${escHtml(area.overview)}</p>
-        <button class="deep-dive-btn" data-area="${key}">Deep Dive ↓</button>
-        <div class="articles" id="articles-${key}"></div>
-      `;
+      card.innerHTML =
+        '<div class="card-header">' +
+          '<span class="card-title">' + escHtml(label) + '</span>' +
+          '<span class="card-badge">' + badge + '</span>' +
+        '</div>' +
+        '<p class="card-overview">' + escHtml(area.overview) + '</p>' +
+        '<button class="deep-dive-btn" data-area="' + key + '">' + T[lang].deepDive + '</button>' +
+        '<div class="articles" id="articles-' + key + '"></div>';
 
-      const btn = card.querySelector(".deep-dive-btn");
-      const articlesEl = card.querySelector(".articles");
+      var btn = card.querySelector(".deep-dive-btn");
+      var articlesEl = card.querySelector(".articles");
 
       if (area.items && area.items.length > 0) {
         renderArticles(articlesEl, area.items);
-        btn.addEventListener("click", () => toggleDeepDive(btn, articlesEl));
+        btn.addEventListener("click", function() { toggleDeepDive(btn, articlesEl); });
       } else {
-        btn.addEventListener("click", async () => {
+        btn.addEventListener("click", async function() {
           btn.disabled = true;
-          btn.textContent = "Loading…";
+          btn.textContent = T[lang].loadingGeneric;
           try {
-            const detail = await api(`/api/areas/${key}/${currentDate}`);
+            var detail = await api("/api/areas/" + key + "/" + currentDate);
             renderArticles(articlesEl, detail.items);
             toggleDeepDive(btn, articlesEl);
           } catch (e) {
-            btn.textContent = "Error — retry";
+            btn.textContent = "Error -- retry";
             btn.disabled = false;
           }
         });
@@ -429,22 +629,22 @@ data:
     }
 
     function renderArticles(container, items) {
-      container.innerHTML = items.map(item => `
-        <div class="article">
-          <div class="article-rank">#${item.rank}</div>
-          <div class="article-title">
-            <a href="${escHtml(item.url)}" target="_blank" rel="noopener">
-              ${escHtml(item.title)}
-            </a>
-          </div>
-          <p class="article-summary">${escHtml(item.summary)}</p>
-        </div>
-      `).join("");
+      container.innerHTML = items.map(function(item) {
+        return '<div class="article">' +
+          '<div class="article-rank">#' + item.rank + '</div>' +
+          '<div class="article-title">' +
+            '<a href="' + escHtml(item.url) + '" target="_blank" rel="noopener">' +
+              escHtml(item.title) +
+            '</a>' +
+          '</div>' +
+          '<p class="article-summary">' + escHtml(item.summary) + '</p>' +
+        '</div>';
+      }).join("");
     }
 
     function toggleDeepDive(btn, articlesEl) {
-      const open = articlesEl.classList.toggle("visible");
-      btn.textContent = open ? "Close ↑" : "Deep Dive ↓";
+      var open = articlesEl.classList.toggle("visible");
+      btn.textContent = open ? T[lang].closeArticles : T[lang].deepDive;
       btn.classList.toggle("open", open);
     }
 
@@ -457,67 +657,84 @@ data:
     }
 
     async function loadDigest(dateStr) {
-      document.getElementById("loadingMsg").style.display = "block";
-      document.getElementById("loadingMsg").textContent = "Loading…";
-      document.getElementById("dailyView").style.display = "none";
+      document.getElementById("loadingMsg").style.display  = "block";
+      document.getElementById("loadingMsg").textContent    = T[lang].loading;
+      document.getElementById("dailyView").style.display   = "none";
       document.getElementById("monthlyView").style.display = "none";
       try {
-        const data = await api(dateStr ? `/api/digest/${dateStr}` : "/api/digest/today");
+        var data = await api(dateStr ? "/api/digest/" + dateStr : "/api/digest/today");
         renderDigest(data);
       } catch (e) {
-        showError(`Could not load digest: ${e.message}`);
+        showError(T[lang].errorDigest + " " + e.message);
       }
     }
 
     async function loadMonthly(year, month) {
-      document.getElementById("dailyView").style.display = "none";
-      document.getElementById("loadingMsg").style.display = "block";
-      document.getElementById("loadingMsg").textContent = "Loading monthly summary…";
+      document.getElementById("dailyView").style.display   = "none";
+      document.getElementById("loadingMsg").style.display  = "block";
+      document.getElementById("loadingMsg").textContent    = T[lang].loadingMonthly;
       try {
-        const data = await api(`/api/monthly/${year}/${month}`);
-        document.getElementById("loadingMsg").style.display = "none";
-        document.getElementById("monthlyTitle").textContent =
-          `Monthly Summary — ${year}-${String(month).padStart(2,"0")}`;
+        var data = await api("/api/monthly/" + year + "/" + month);
+        document.getElementById("loadingMsg").style.display  = "none";
+        document.getElementById("monthlyTitle").textContent  = T[lang].monthlyTitle(year, month);
         document.getElementById("monthlyContent").textContent = data.content;
         document.getElementById("monthlyView").style.display = "block";
       } catch (e) {
-        showError(`Monthly summary not available: ${e.message}`);
+        showError(T[lang].errorMonthly + " " + e.message);
       }
     }
 
     async function populateDatePicker() {
       try {
-        const dates = await api("/api/dates");
-        const picker = document.getElementById("datePicker");
+        var dates = await api("/api/dates");
+        var picker = document.getElementById("datePicker");
         if (dates.length > 0) {
           picker.min = dates[dates.length - 1];
           picker.max = dates[0];
         }
-      } catch (_) {}
+      } catch (e) {}
     }
 
-    // Event listeners
-    document.getElementById("datePicker").addEventListener("change", e => {
+    document.getElementById("datePicker").addEventListener("change", function(e) {
       if (e.target.value) loadDigest(e.target.value);
     });
 
-    document.getElementById("monthlyBtn").addEventListener("click", () => {
-      const now = new Date();
+    document.getElementById("monthlyBtn").addEventListener("click", function() {
+      var now = new Date();
       loadMonthly(now.getFullYear(), now.getMonth() + 1);
     });
 
-    document.getElementById("backBtn").addEventListener("click", () => {
+    document.getElementById("backBtn").addEventListener("click", function() {
       loadDigest(currentDate);
     });
 
-    document.getElementById("aboutBtn").addEventListener("click", () => {
-      const panel = document.getElementById("aboutPanel");
-      const btn = document.getElementById("aboutBtn");
-      const visible = panel.style.display !== "none";
+    document.getElementById("aboutBtn").addEventListener("click", function() {
+      var panel = document.getElementById("aboutPanel");
+      var visible = panel.style.display !== "none";
       panel.style.display = visible ? "none" : "block";
-      btn.textContent = visible ? "About" : "Close About";
+      document.getElementById("aboutBtn").textContent = visible ? T[lang].about : T[lang].aboutClose;
     });
 
-    // Boot
+    document.getElementById("themeBtn").addEventListener("click", function() {
+      theme = theme === "dark" ? "light" : "dark";
+      localStorage.setItem("ddot-theme", theme);
+      applyTheme();
+    });
+
+    document.getElementById("langBtn").addEventListener("click", function() {
+      lang = lang === "en" ? "cs" : "en";
+      localStorage.setItem("ddot-lang", lang);
+      applyLang();
+      if (currentDate && document.getElementById("dailyView").style.display !== "none") {
+        var labels = AREA_LABELS[lang] || AREA_LABELS.en;
+        document.querySelectorAll(".card-title").forEach(function(el) {
+          var key = el.closest(".card").querySelector(".deep-dive-btn").dataset.area;
+          el.textContent = labels[key] || key;
+        });
+      }
+    });
+
+    applyTheme();
+    applyLang();
     populateDatePicker();
     loadDigest(null);

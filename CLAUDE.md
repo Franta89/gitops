@@ -121,6 +121,10 @@ manifests/
 - [x] AKV CSI driver enabled on AKS; Key Vault, SecretProviderClass, and secret-sync resources added.
 - [ ] After `terraform apply` in infra-terraform: fill AKV placeholders in SecretProviderClass files and secret-sa.yaml files.
 - [ ] After `terraform apply` in infra-terraform: fill placeholders in serviceaccount.yaml and settings-configmap.yaml.
+- [ ] After `terraform apply`: connect Azure OpenAI resource to the AI Foundry Hub in the Azure portal:
+      AI Foundry Hub → Settings → Connected resources → + New connection → Azure OpenAI → select `oai-ddot-*`.
+      Then replace `OPENAI_ENDPOINT` in `manifests/news-digest/config/settings-configmap.yaml`
+      with the value from `terraform output foundry_hub_endpoint`.
 - [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict), then enable orange-cloud proxy on both A records.
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
