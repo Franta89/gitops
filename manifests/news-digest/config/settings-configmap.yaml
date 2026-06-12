@@ -1,13 +1,10 @@
-# Non-secret application settings shared by the API deployment and CronJobs.
-# OPENAI_ENDPOINT: replace the placeholder with the value from:
-#   terraform output openai_endpoint   (in infra-terraform repo)
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: news-digest-settings
   namespace: news-digest
 data:
-  OPENAI_ENDPOINT: "https://oai-ddot-dev-swc-001-fa2dd.openai.azure.com/"
+  OPENAI_ENDPOINT: "https://aih-ddot-dev-swc-001.services.ai.azure.com/"
   OPENAI_DEPLOYMENT: "gpt-4.1-mini"
   OPENAI_API_VERSION: "2025-01-01-preview"
   LOG_LEVEL: "INFO"
