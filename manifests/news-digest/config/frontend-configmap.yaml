@@ -9,10 +9,16 @@ data:
         listen 8080;
         server_name _;
 
+        location ~* \.(js|css)$ {
+            root /usr/share/nginx/html;
+            add_header Cache-Control "no-cache, must-revalidate";
+        }
+
         location / {
             root /usr/share/nginx/html;
             index index.html;
             try_files $uri $uri/ /index.html;
+            add_header Cache-Control "no-cache, must-revalidate";
         }
 
         location /api/ {
@@ -404,10 +410,10 @@ data:
       "                |                                   |",
       "                v                                   v",
       "  +----------------------+          +---------------------------+",
-      "  |   NewsAPI.org        |          |  Azure AI Foundry         |",
-      "  |   REST API           |          |  GPT-4.1-mini             |",
-      "  |   25-hour window     |          |  (GlobalStandard tier)    |",
-      "  |   relevancy sort     |          |  Azure Cognitive Svcs     |",
+      "  |   NewsAPI.org        |          |  Azure AI Foundry Hub     |",
+      "  |   REST API           |          |  Azure AI Services        |",
+      "  |   25-hour window     |          |  GPT-4.1-mini             |",
+      "  |   relevancy sort     |          |  (GlobalStandard tier)    |",
       "  +----------------------+          +---------------------------+"
     ].join("\n");
 

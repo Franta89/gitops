@@ -16,7 +16,7 @@ exist before the ddot app can run.
 
 ## How it flows
 
-1. `infra-terraform` provisions AKS, Azure OpenAI, Bing Search, Managed Identity, and installs Argo CD.
+1. `infra-terraform` provisions AKS, Azure AI Services (GPT-4.1-mini), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
 2. Copy two Terraform outputs into gitops manifests (see placeholders in `manifests/news-digest/`).
 3. `kubectl apply -f bootstrap/root-app.yaml` registers the app-of-apps.
 4. Argo CD syncs `apps/` in wave order: Strimzi (0) → Kafka (1) → cert-manager + ingress-nginx (2) → monitoring + postgresql (3) → config (4) → ddot app (5).
@@ -43,16 +43,16 @@ DNS is live and proxied through **Cloudflare** (orange cloud enabled).
 TLS certificates issued by Let's Encrypt via **DNS-01 challenge** (Cloudflare API token).
 Cloudflare SSL/TLS mode must be set to **Full (strict)**.
 
-The app fetches news via Bing Search API, uses Azure OpenAI (GPT-4o-mini) to
-pick and summarise the top 3 articles per area, and serves results on a web page.
+The app fetches news via NewsAPI, uses Azure AI Services (GPT-4.1-mini) via the
+AI Foundry Hub to pick and summarise the top 3 articles per area, and serves
+results on a web page.
 
 Areas: Azure Cloud · AI Development · World News · IT Security
 
-Schedule: aggregator CronJob at 06:10 CET daily; monthly summary on the 1st.
+Schedule: aggregator CronJob at 06:30 CET daily; monthly summary on the 1st.
 
-Auth: Azure Workload Identity (keyless) for OpenAI. NewsAPI key stored in
-`newsapi-secret` (NewsAPI uses key-based auth only — documented exception).
-Bing Search v7 was retired; NewsAPI (newsapi.org) is used instead.
+Auth: Azure Workload Identity (keyless) for Azure AI Services via AI Foundry Hub.
+NewsAPI key stored in `newsapi-secret` (NewsAPI uses key-based auth only — documented exception).
 
 ## Key decisions / constraints
 
