@@ -31,6 +31,7 @@ data:
         "cloud_computing": (
             'Azure OR AWS OR "Google Cloud" OR Kubernetes OR "cloud computing"'
             ' OR "cloud native" OR serverless OR "platform engineering"'
+            ' OR "data center" OR "edge computing" OR Terraform OR "cloud outage"'
         ),
         "ai_development": (
             '"artificial intelligence" OR "machine learning" OR LLM OR OpenAI OR GPT'
@@ -39,6 +40,8 @@ data:
         "it_security": (
             'cybersecurity OR "security breach" OR vulnerability OR ransomware'
             ' OR "zero-day" OR "data breach" OR CVE OR exploit OR malware OR CISA'
+            ' OR phishing OR "supply chain attack" OR "threat actor"'
+            ' OR "security advisory" OR "patch"'
         ),
         "financial_markets": (
             '"stock market" OR "Wall Street" OR "S&P 500" OR "NASDAQ" OR "Dow Jones"'
@@ -67,6 +70,29 @@ data:
         "it_security":       "IT Security",
         "financial_markets": "Financial Markets",
         "world_news":        "World News",
+    }
+
+    # NewsAPI's free Developer tier serves articles with a ~24h delay, so a 25h
+    # window only exposes a ~1h sliver of *available* articles. Look back far
+    # enough to capture a full day of matured news; cross-day dedup (known_urls)
+    # prevents anything already published in the digest from repeating. Thin,
+    # low-volume areas get a wider window to accumulate enough candidates.
+    DEFAULT_WINDOW_HOURS = 48
+    WINDOW_HOURS = {
+        "cloud_computing": 72,
+        "it_security":     72,
+    }
+
+    # Authoritative, high-signal domains per area. A second NewsAPI pass
+    # restricted to these is merged ahead of the broad pass so strong outlets
+    # lead the candidate pool the AI selects from. Broad pass still runs, so
+    # nothing outside the list is excluded — these are only prioritised.
+    AREA_SOURCES = {
+        "cloud_computing":   "theregister.com,infoworld.com,techcrunch.com,zdnet.com,arstechnica.com,infoq.com",
+        "ai_development":    "venturebeat.com,techcrunch.com,arstechnica.com,theverge.com,wired.com,zdnet.com",
+        "it_security":       "bleepingcomputer.com,thehackernews.com,krebsonsecurity.com,securityweek.com,darkreading.com,arstechnica.com",
+        "financial_markets": "reuters.com,bloomberg.com,cnbc.com,wsj.com,ft.com,marketwatch.com",
+        "world_news":        "reuters.com,apnews.com,bbc.co.uk,aljazeera.com,theguardian.com,dw.com",
     }
 
     # ------------------------------------------------------------------
@@ -218,7 +244,8 @@ data:
 
     # popularity favours reputable outlets over keyword-dense release notes;
     # fetch a wide pool, then diversify by source before handing to the AI.
-    def newsapi_search(query: str, since: datetime, page_size: int = 50) -> list[dict]:
+    def newsapi_search(query: str, since: datetime, page_size: int = 50,
+                       domains: str = "") -> list[dict]:
         params = {
             "q":        query,
             "from":     since.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -227,6 +254,8 @@ data:
             "language": "en",
             "apiKey":   NEWSAPI_KEY,
         }
+        if domains:
+            params["domains"] = domains
         resp = requests.get(NEWSAPI_ENDPOINT, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
@@ -356,7 +385,8 @@ data:
     # AI summarisation — area-aware persona and selection criteria
     # ------------------------------------------------------------------
     def summarize_area(client: AzureOpenAI, area_key: str, area_label: str,
-                       candidates: list[dict], known_urls: set[str]) -> dict:
+                       candidates: list[dict], known_urls: set[str],
+                       relaxed: bool = False) -> dict:
         fresh = [c for c in candidates if c["url"] not in known_urls]
         if not fresh:
             log.warning("No fresh articles for %s — falling back to all candidates", area_label)
@@ -364,17 +394,31 @@ data:
 
         ctx = AREA_PROMPTS.get(area_key, AREA_PROMPTS["cloud_computing"])
 
+        # Normal mode enforces source diversity to stop one feed dominating.
+        # Relaxed mode (used by the empty-area retry) drops the diversity gate so
+        # a thin pool still yields the best available story instead of nothing.
+        if relaxed:
+            select_rule = (
+                'Select 1-3 articles — the single most important available story, '
+                'plus up to two more only if clearly significant. The pool is thin, '
+                'so do NOT reject everything: surface the best available even if modest.'
+            )
+        else:
+            select_rule = (
+                'Select 3-5 articles. '
+                'Favour the most important developments reported across the world, not '
+                'whatever a single source published most often. Prefer at least 3 '
+                'distinct sources (see the "source" field) and take no more than one item '
+                'from any single source. Exclude routine package-release, changelog, and '
+                'version-bump posts unless the release is genuinely major news.'
+            )
+
         prompt = (
             f'You are {ctx["persona"]} covering "{area_label}".\n'
-            f'Below are {len(fresh)} recent news articles from the past 25 hours.\n\n'
+            f'Below are {len(fresh)} recent news articles from roughly the past 1-3 days.\n\n'
             'Task:\n'
-            f'1. Select 3-5 articles. Prioritise: {ctx["select"]}. '
-            'Skip marketing copy, opinion pieces, and near-duplicate stories. '
-            'Favour the most important developments reported across the world, not '
-            'whatever a single source published most often. Select from at least 3 '
-            'distinct sources (see the "source" field) and take no more than one item '
-            'from any single source. Exclude routine package-release, changelog, and '
-            'version-bump posts unless the release is genuinely major news.\n'
+            f'1. {select_rule} Prioritise: {ctx["select"]}. '
+            'Skip marketing copy, opinion pieces, and near-duplicate stories.\n'
             f'2. For each selected article write a precise summary (4-6 sentences). '
             f'{ctx["summarize"]} '
             'Do NOT use vague phrases like "highlights the importance of".\n'
@@ -503,7 +547,6 @@ data:
 
         # Daily mode
         today = now_utc.date()
-        since = now_utc - timedelta(hours=25)
         known_urls = get_known_urls(conn)
         digest_id = upsert_digest(conn, today)
         conn.commit()
@@ -513,7 +556,28 @@ data:
             # Isolate each area: a failure in one must not abort the others.
             try:
                 log.info("Processing area: %s", area)
-                candidates = newsapi_search(query, since)
+                window = WINDOW_HOURS.get(area, DEFAULT_WINDOW_HOURS)
+                since = now_utc - timedelta(hours=window)
+
+                # Two-pass retrieval: an authoritative-source pass first, then the
+                # broad popularity pass. Merge with the quality sources leading so
+                # they rank ahead before diversification.
+                candidates = []
+                source_list = AREA_SOURCES.get(area, "")
+                if source_list:
+                    candidates += newsapi_search(query, since, domains=source_list)
+                candidates += newsapi_search(query, since)
+
+                seen_urls: set[str] = set()
+                merged = []
+                for c in candidates:
+                    if c["url"] and c["url"] not in seen_urls:
+                        seen_urls.add(c["url"])
+                        merged.append(c)
+                candidates = merged
+                log.info("Area %s: %d unique candidates (window %dh)",
+                         area, len(candidates), window)
+
                 if not candidates:
                     log.warning("No results for %s — retrying with fallback query", area)
                     candidates = newsapi_search(TOPICS_FALLBACK[area], since)
@@ -526,14 +590,15 @@ data:
 
                 if not items:
                     # Never leave an area with an overview but zero stories.
-                    # Retry once on the full candidate pool, ignoring the
-                    # cross-day dedup so a thin/duplicate pool still yields items.
-                    log.warning("AI returned 0 items for %s — retrying without "
-                                "dedup/diversity filters", area)
-                    result = summarize_area(client, area, AREA_LABELS[area], candidates, set())
+                    # Retry on the full pool, ignoring cross-day dedup AND relaxing
+                    # the diversity gate so a thin pool still yields the best story.
+                    log.warning("AI returned 0 items for %s — retrying relaxed "
+                                "(no dedup, no diversity gate)", area)
+                    result = summarize_area(client, area, AREA_LABELS[area],
+                                            candidates, set(), relaxed=True)
                     items = result.get("items", [])
                     if not items:
-                        log.error("Still 0 items for %s after retry", area)
+                        log.error("Still 0 items for %s after relaxed retry", area)
 
                 for item in items:
                     # Clamp rank into the DB CHECK range (1-5) to avoid a
