@@ -43,16 +43,21 @@ DNS is live and proxied through **Cloudflare** (orange cloud enabled).
 TLS certificates issued by Let's Encrypt via **DNS-01 challenge** (Cloudflare API token).
 Cloudflare SSL/TLS mode must be set to **Full (strict)**.
 
-The app fetches news via NewsAPI, uses Azure AI Services (GPT-4.1-mini) via the
-AI Foundry Hub to pick and summarise the top 3 articles per area, and serves
-results on a web page.
+The app gathers news in real time from authoritative **RSS/Atom feeds** (per-area
+lists in `aggregator.py`: BBC, The Guardian, CNBC, The Register, BleepingComputer,
+Al Jazeera, and more), uses Azure AI Services (GPT-4.1-mini) via the AI Foundry Hub
+to pick and summarise the top 3–5 articles per area, and serves results on a web page.
 
-Areas: Azure Cloud · AI Development · World News · IT Security
+Areas: Cloud Computing · AI Development · IT Security · Financial Markets · World News
 
 Schedule: aggregator CronJob at 06:30 CET daily; monthly summary on the 1st.
 
+News retrieval is keyless: RSS feeds need no API key, removing the previous NewsAPI
+dependency (whose free tier was 24h-delayed and forbade production use). See
+`docs/runbook.md` for the source list, look-back windows, and selection logic.
+
 Auth: Azure Workload Identity (keyless) for Azure AI Services via AI Foundry Hub.
-NewsAPI key stored in `newsapi-secret` (NewsAPI uses key-based auth only — documented exception).
+All secrets in Azure Key Vault via the AKV CSI driver — no key-based external APIs.
 
 ## Key decisions / constraints
 
