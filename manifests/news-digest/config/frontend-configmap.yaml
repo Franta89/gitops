@@ -99,7 +99,7 @@ data:
         <span id="footerText"></span>
       </footer>
 
-      <script src="/app.js?v=4"></script>
+      <script src="/app.js?v=5"></script>
     </body>
     </html>
 
@@ -420,9 +420,9 @@ data:
       "                |                                   |",
       "                v                                   v",
       "  +----------------------+          +---------------------------+",
-      "  |  RSS / Atom feeds    |          |  Azure AI Foundry Hub     |",
-      "  |  authoritative srcs  |          |  Azure AI Services        |",
-      "  |  real-time, keyless  |          |  GPT-4.1-mini             |",
+      "  |  RSS / Atom feeds    |          |  Azure AI Services        |",
+      "  |  authoritative srcs  |          |  (direct API call)        |",
+      "  |  real-time, keyless  |          |  GPT-5.4-mini             |",
       "  |  48-72h window       |          |  (GlobalStandard tier)    |",
       "  +----------------------+          +---------------------------+"
     ].join("\n");
@@ -450,11 +450,11 @@ data:
         langSwitch:     "CZ",
         aboutTitle:     "About Daily Dose of Tech",
         aboutDesc1:     "Daily Dose of Tech (ddot) is a development and test project exploring Kubernetes orchestration and Azure AI services. It is not a production system and may be unavailable or updated without notice.",
-        aboutDesc2:     "The app runs on Azure Kubernetes Service (AKS) managed with Argo CD (GitOps). News is gathered daily in real time from authoritative RSS/Atom feeds (no API key, no third-party paywall) and summarised by Azure AI Foundry (GPT-4.1-mini) using Azure Workload Identity for keyless authentication.",
+        aboutDesc2:     "The app runs on Azure Kubernetes Service (AKS) managed with Argo CD (GitOps). News is gathered daily in real time from authoritative RSS/Atom feeds (no API key, no third-party paywall). Azure AI (GPT-5.4-mini) then selects the top stories per area, writes the summaries, and translates them into Czech -- authenticated keylessly with Azure Workload Identity.",
         aboutList:      [
           "Infrastructure: AKS (Free tier), Azure Sweden Central",
           "News sources: authoritative RSS/Atom feeds (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, and more), 48-72h window",
-          "AI: Azure AI Foundry GPT-4.1-mini (GlobalStandard) -- selects and summarises the top stories per area",
+          "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- selects, summarises, and translates (EN/CS) the top stories per area",
           "GitOps: Argo CD, Strimzi/Kafka, cert-manager, NGINX Ingress",
           "Secrets: Azure Key Vault + CSI driver (keyless via Workload Identity)",
           "Purpose: dev/test sandbox -- Kubernetes and Azure AI services integration"
@@ -484,11 +484,11 @@ data:
         langSwitch:     "EN",
         aboutTitle:     "O aplikaci Daily Dose of Tech",
         aboutDesc1:     "Daily Dose of Tech (ddot) je vyvojovy a testovaci projekt zkoumajici orchestraci Kubernetes a sluzby Azure AI. Neni to produkcni system a muze byt nedostupny nebo aktualizovan bez upozorneni.",
-        aboutDesc2:     "Aplikace bezi na clusteru Azure Kubernetes Service (AKS) spravovanem pres Argo CD (GitOps). Zpravy jsou kazdy den nacitany v realnem case z duveryhodnych RSS/Atom kanalu (bez API klice, bez platebni brany) a sumarizovany pomoci Azure AI Foundry (GPT-4.1-mini) s keyless autentizaci pres Azure Workload Identity.",
+        aboutDesc2:     "Aplikace bezi na clusteru Azure Kubernetes Service (AKS) spravovanem pres Argo CD (GitOps). Zpravy jsou kazdy den nacitany v realnem case z duveryhodnych RSS/Atom kanalu (bez API klice, bez platebni brany). Azure AI (GPT-5.4-mini) pote vybere hlavni zpravy v kazde oblasti, napise shrnuti a prelozi je do cestiny -- s keyless autentizaci pres Azure Workload Identity.",
         aboutList:      [
           "Infrastruktura: AKS (Free tier), Azure Svedsko - stred",
           "Zdroje zprav: duveryhodne RSS/Atom kanaly (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera a dalsi), okno 48-72h",
-          "AI: Azure AI Foundry GPT-4.1-mini (GlobalStandard) -- vybira a sumarizuje hlavni zpravy v kazde oblasti",
+          "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- vybira, sumarizuje a preklada (EN/CS) hlavni zpravy v kazde oblasti",
           "GitOps: Argo CD, Strimzi/Kafka, cert-manager, NGINX Ingress",
           "Tajne klice: Azure Key Vault + CSI driver (keyless pres Workload Identity)",
           "Ucel: vyvojovy sandbox -- integrace Kubernetes a Azure AI sluzeb"

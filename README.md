@@ -56,11 +56,13 @@ candidates. A broken/stale feed is logged and skipped, never aborting an area.
 ### AI — how it works
 
 The AI does **not** fetch news (RSS does); its job is selection + writing. Model:
-**Azure AI Services GPT-4.1-mini** via the **Azure AI Foundry Hub**, authenticated
-**keylessly** with Azure Workload Identity (no API key — a `_TokenProvider` wraps
-`WorkloadIdentityCredential`). Endpoint/deployment are in
-`config/settings-configmap.yaml`; the Azure resources and the identity/role chain
-are provisioned in the **infra-terraform** repo (see its README → "Azure AI").
+**Azure AI Services GPT-5.4-mini**, called **directly against the AI Services
+account** (endpoint `*.cognitiveservices.azure.com`, deployment `gpt-5.4-mini`) —
+**not** routed through the Foundry Hub. Authenticated **keylessly** with Azure
+Workload Identity (no API key — a `_TokenProvider` wraps `WorkloadIdentityCredential`).
+Endpoint/deployment are in `config/settings-configmap.yaml`; the Azure resources and
+the identity/role chain are provisioned in the **infra-terraform** repo (see its
+README → "Azure AI"). The Foundry Hub is provisioned but not in the inference path.
 
 Two AI calls in `aggregator.py`:
 

@@ -16,7 +16,7 @@ exist before the ddot app can run.
 
 ## How it flows
 
-1. `infra-terraform` provisions AKS, Azure AI Services (GPT-4.1-mini), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
+1. `infra-terraform` provisions AKS, Azure AI Services (GPT-5.4-mini), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
 2. Copy two Terraform outputs into gitops manifests (see placeholders in `manifests/news-digest/`).
 3. `kubectl apply -f bootstrap/root-app.yaml` registers the app-of-apps.
 4. Argo CD syncs `apps/` in wave order: Strimzi (0) → Kafka (1) → cert-manager + ingress-nginx (2) → monitoring + postgresql (3) → config (4) → ddot app (5).
@@ -45,8 +45,10 @@ Cloudflare SSL/TLS mode must be set to **Full (strict)**.
 
 The app gathers news in real time from authoritative **RSS/Atom feeds** (per-area
 lists in `aggregator.py`: BBC, The Guardian, CNBC, The Register, BleepingComputer,
-Al Jazeera, and more), uses Azure AI Services (GPT-4.1-mini) via the AI Foundry Hub
-to pick and summarise the top 3–5 articles per area, and serves results on a web page.
+Al Jazeera, and more), uses Azure AI Services (GPT-5.4-mini) — called directly
+against the AI Services account endpoint (`*.cognitiveservices.azure.com`), not via
+the Foundry Hub — to pick and summarise the top 3–5 articles per area, and serves
+results on a web page.
 
 Areas: Cloud Computing · AI Development · IT Security · Financial Markets · World News
 
@@ -57,8 +59,10 @@ dependency (whose free tier was 24h-delayed and forbade production use). See
 `README.md` → "Daily Dose of Tech" for the source list, look-back windows, AI
 selection logic, operations, and troubleshooting.
 
-Auth: Azure Workload Identity (keyless) for Azure AI Services via AI Foundry Hub.
-All secrets in Azure Key Vault via the AKV CSI driver — no key-based external APIs.
+Auth: Azure Workload Identity (keyless) for Azure AI Services — direct
+`cognitiveservices.azure.com` endpoint; the AI Foundry Hub is provisioned but not
+in the inference path. All secrets in Azure Key Vault via the AKV CSI driver — no
+key-based external APIs.
 
 ## Key decisions / constraints
 
@@ -132,10 +136,10 @@ manifests/
 - [x] AKV CSI driver enabled on AKS; Key Vault, SecretProviderClass, and secret-sync resources added.
 - [ ] After `terraform apply` in infra-terraform: fill AKV placeholders in SecretProviderClass files and secret-sa.yaml files.
 - [ ] After `terraform apply` in infra-terraform: fill placeholders in serviceaccount.yaml and settings-configmap.yaml.
-- [ ] After `terraform apply`: connect Azure OpenAI resource to the AI Foundry Hub in the Azure portal:
-      AI Foundry Hub → Settings → Connected resources → + New connection → Azure OpenAI → select `oai-ddot-*`.
-      Then replace `OPENAI_ENDPOINT` in `manifests/news-digest/config/settings-configmap.yaml`
-      with the value from `terraform output foundry_hub_endpoint`.
+- [x] After `terraform apply`: set `OPENAI_ENDPOINT` in `settings-configmap.yaml` to the
+      **AI Services** account endpoint (`https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/`)
+      and `OPENAI_DEPLOYMENT` to `gpt-5.4-mini`. The app calls AI Services directly; the
+      Foundry Hub is provisioned but NOT in the inference path (no Hub connection needed).
 - [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict), then enable orange-cloud proxy on both A records.
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
