@@ -46,8 +46,9 @@ Cloudflare SSL/TLS mode must be set to **Full (strict)**.
 The app gathers news in real time from authoritative **RSS/Atom feeds** (per-area
 lists in `aggregator.py`: BBC, The Guardian, CNBC, The Register, BleepingComputer,
 Al Jazeera, and more), uses Azure AI Services (GPT-5.4-mini) — called directly
-against the AI Services account endpoint (`*.cognitiveservices.azure.com`), not via
-the Foundry Hub — to pick and summarise the top 3–5 articles per area, and serves
+against the AI Services account's **v1 API** (`*.openai.azure.com/openai/v1/`,
+stock `OpenAI` client + Entra bearer token, no dated api-version), not via the
+Foundry Hub — to pick and summarise the top 3–5 articles per area, and serves
 results on a web page.
 
 Areas: Cloud Computing · AI Development · IT Security · Financial Markets · World News
@@ -59,8 +60,8 @@ dependency (whose free tier was 24h-delayed and forbade production use). See
 `README.md` → "Daily Dose of Tech" for the source list, look-back windows, AI
 selection logic, operations, and troubleshooting.
 
-Auth: Azure Workload Identity (keyless) for Azure AI Services — direct
-`cognitiveservices.azure.com` endpoint; the AI Foundry Hub is provisioned but not
+Auth: Azure Workload Identity (keyless) for Azure AI Services — direct v1 API
+(`*.openai.azure.com/openai/v1/`); the AI Foundry Hub is provisioned but not
 in the inference path. All secrets in Azure Key Vault via the AKV CSI driver — no
 key-based external APIs.
 
@@ -137,7 +138,7 @@ manifests/
 - [ ] After `terraform apply` in infra-terraform: fill AKV placeholders in SecretProviderClass files and secret-sa.yaml files.
 - [ ] After `terraform apply` in infra-terraform: fill placeholders in serviceaccount.yaml and settings-configmap.yaml.
 - [x] After `terraform apply`: set `OPENAI_ENDPOINT` in `settings-configmap.yaml` to the
-      **AI Services** account endpoint (`https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/`)
+      AI Services **v1 API** base URL (`https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/`)
       and `OPENAI_DEPLOYMENT` to `gpt-5.4-mini`. The app calls AI Services directly; the
       Foundry Hub is provisioned but NOT in the inference path (no Hub connection needed).
 - [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict), then enable orange-cloud proxy on both A records.
