@@ -199,11 +199,30 @@ data:
     # ------------------------------------------------------------------
     # NewsAPI search — fetch up to 25 candidates from the last 25 hours
     # ------------------------------------------------------------------
-    def newsapi_search(query: str, since: datetime, page_size: int = 25) -> list[dict]:
+    def _domain_of(url: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).netloc.lower()
+            return host[4:] if host.startswith("www.") else host
+        except Exception:
+            return ""
+
+    # Pure package indexes / changelog aggregators that flood keyword queries
+    # with low-importance release notes. Capped harder than ordinary sources.
+    AGGREGATOR_DOMAINS = {
+        "pypi.org", "npmjs.com", "github.com", "pypistats.org",
+        "libraries.io", "anaconda.org", "crates.io", "rubygems.org",
+    }
+    PER_DOMAIN_CAP    = 2   # ordinary sources
+    PER_AGGREGATOR_CAP = 1  # package indexes / changelog feeds
+
+    # popularity favours reputable outlets over keyword-dense release notes;
+    # fetch a wide pool, then diversify by source before handing to the AI.
+    def newsapi_search(query: str, since: datetime, page_size: int = 50) -> list[dict]:
         params = {
             "q":        query,
             "from":     since.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "sortBy":   "relevancy",
+            "sortBy":   "popularity",
             "pageSize": page_size,
             "language": "en",
             "apiKey":   NEWSAPI_KEY,
@@ -215,13 +234,33 @@ data:
             raise RuntimeError(f"NewsAPI error: {data.get('message', data)}")
         results = []
         for article in data.get("articles", []):
+            url = article.get("url", "")
             results.append({
                 "title":   article.get("title", ""),
-                "url":     article.get("url", ""),
+                "url":     url,
+                "source":  (article.get("source") or {}).get("name") or _domain_of(url),
                 "snippet": article.get("description") or article.get("content", ""),
             })
         log.info("NewsAPI returned %d results for query: %s", len(results), query[:60])
         return results
+
+    # Cap how many articles any single source contributes so one busy feed
+    # (e.g. a package index on release day) cannot dominate an area.
+    def diversify_by_source(candidates: list[dict], limit: int = 25) -> list[dict]:
+        seen: dict[str, int] = {}
+        kept = []
+        for c in candidates:
+            domain = _domain_of(c["url"])
+            cap = PER_AGGREGATOR_CAP if domain in AGGREGATOR_DOMAINS else PER_DOMAIN_CAP
+            if seen.get(domain, 0) >= cap:
+                continue
+            seen[domain] = seen.get(domain, 0) + 1
+            kept.append(c)
+            if len(kept) >= limit:
+                break
+        log.info("Diversified %d candidates down to %d across %d sources",
+                 len(candidates), len(kept), len(seen))
+        return kept
 
     # Per-area prompt context: persona, what to select, how to summarise, how to synthesise
     AREA_PROMPTS = {
@@ -330,7 +369,12 @@ data:
             f'Below are {len(fresh)} recent news articles from the past 25 hours.\n\n'
             'Task:\n'
             f'1. Select 3-5 articles. Prioritise: {ctx["select"]}. '
-            'Skip marketing copy, opinion pieces, and near-duplicate stories.\n'
+            'Skip marketing copy, opinion pieces, and near-duplicate stories. '
+            'Favour the most important developments reported across the world, not '
+            'whatever a single source published most often. Select from at least 3 '
+            'distinct sources (see the "source" field) and take no more than one item '
+            'from any single source. Exclude routine package-release, changelog, and '
+            'version-bump posts unless the release is genuinely major news.\n'
             f'2. For each selected article write a precise summary (4-6 sentences). '
             f'{ctx["summarize"]} '
             'Do NOT use vague phrases like "highlights the importance of".\n'
@@ -354,8 +398,11 @@ data:
             model=OPENAI_DEPLOYMENT,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=2500,
+            max_tokens=4000,
         )
+        if response.choices[0].finish_reason == "length":
+            log.warning("AI response for %s hit the token limit — JSON may be truncated",
+                        area_label)
         import re
         raw = response.choices[0].message.content.strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
@@ -461,25 +508,47 @@ data:
         digest_id = upsert_digest(conn, today)
         conn.commit()
 
+        failed_areas = []
         for area, query in TOPICS.items():
-            log.info("Processing area: %s", area)
-            candidates = newsapi_search(query, since)
-            if not candidates:
-                log.warning("No results for %s — retrying with fallback query", area)
-                candidates = newsapi_search(TOPICS_FALLBACK[area], since)
-            if not candidates:
-                log.error("No NewsAPI results for %s even with fallback — skipping", area)
-                continue
-            result = summarize_area(client, area, AREA_LABELS[area], candidates, known_urls)
-            area_summary_id = upsert_area_summary(
-                conn, digest_id, area, result["overview"], result.get("overview_cs", "")
-            )
-            insert_news_items(conn, area_summary_id, result["items"])
-            conn.commit()
-            log.info("Area %s done — %d items written", area, len(result["items"]))
+            # Isolate each area: a failure in one must not abort the others.
+            try:
+                log.info("Processing area: %s", area)
+                candidates = newsapi_search(query, since)
+                if not candidates:
+                    log.warning("No results for %s — retrying with fallback query", area)
+                    candidates = newsapi_search(TOPICS_FALLBACK[area], since)
+                if not candidates:
+                    log.error("No NewsAPI results for %s even with fallback — skipping", area)
+                    continue
+                candidates = diversify_by_source(candidates)
+                result = summarize_area(client, area, AREA_LABELS[area], candidates, known_urls)
+
+                items = result.get("items", [])
+                for item in items:
+                    # Clamp rank into the DB CHECK range (1-5) to avoid a
+                    # constraint violation aborting the insert.
+                    try:
+                        item["rank"] = max(1, min(5, int(item.get("rank", 1))))
+                    except (TypeError, ValueError):
+                        item["rank"] = 1
+
+                area_summary_id = upsert_area_summary(
+                    conn, digest_id, area, result["overview"], result.get("overview_cs", "")
+                )
+                insert_news_items(conn, area_summary_id, items)
+                conn.commit()
+                log.info("Area %s done — %d items written", area, len(items))
+            except Exception:
+                conn.rollback()
+                failed_areas.append(area)
+                log.exception("Area %s failed — continuing with remaining areas", area)
 
         conn.close()
-        log.info("Daily digest complete for %s", today)
+        if failed_areas:
+            log.error("Daily digest complete for %s with failures: %s",
+                      today, ", ".join(failed_areas))
+        else:
+            log.info("Daily digest complete for %s", today)
 
     if __name__ == "__main__":
         main()
