@@ -520,10 +520,21 @@ data:
                 if not candidates:
                     log.error("No NewsAPI results for %s even with fallback — skipping", area)
                     continue
-                candidates = diversify_by_source(candidates)
-                result = summarize_area(client, area, AREA_LABELS[area], candidates, known_urls)
-
+                diversified = diversify_by_source(candidates)
+                result = summarize_area(client, area, AREA_LABELS[area], diversified, known_urls)
                 items = result.get("items", [])
+
+                if not items:
+                    # Never leave an area with an overview but zero stories.
+                    # Retry once on the full candidate pool, ignoring the
+                    # cross-day dedup so a thin/duplicate pool still yields items.
+                    log.warning("AI returned 0 items for %s — retrying without "
+                                "dedup/diversity filters", area)
+                    result = summarize_area(client, area, AREA_LABELS[area], candidates, set())
+                    items = result.get("items", [])
+                    if not items:
+                        log.error("Still 0 items for %s after retry", area)
+
                 for item in items:
                     # Clamp rank into the DB CHECK range (1-5) to avoid a
                     # constraint violation aborting the insert.
