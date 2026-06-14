@@ -1,5 +1,6 @@
 # Two ConfigMaps mounted as DIRECTORIES (not subPath) so edits propagate to the
-# running pod automatically — no rollout restart needed. See docs/runbook.md §8.
+# running pod automatically — no rollout restart needed.
+# See README.md → "Daily Dose of Tech" → Operations → Frontend changes.
 apiVersion: v1
 kind: ConfigMap
 metadata:

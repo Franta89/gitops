@@ -54,7 +54,8 @@ Schedule: aggregator CronJob at 06:30 CET daily; monthly summary on the 1st.
 
 News retrieval is keyless: RSS feeds need no API key, removing the previous NewsAPI
 dependency (whose free tier was 24h-delayed and forbade production use). See
-`docs/runbook.md` for the source list, look-back windows, and selection logic.
+`README.md` → "Daily Dose of Tech" for the source list, look-back windows, AI
+selection logic, operations, and troubleshooting.
 
 Auth: Azure Workload Identity (keyless) for Azure AI Services via AI Foundry Hub.
 All secrets in Azure Key Vault via the AKV CSI driver — no key-based external APIs.
@@ -72,7 +73,7 @@ All secrets in Azure Key Vault via the AKV CSI driver — no key-based external 
   `frontend-nginx`) mounted as **directories** (not subPath), so edits propagate
   to the running pod automatically — no rollout restart needed. Still bump
   `app.js?v=N` on `app.js` changes for browser/CDN cache-busting. See
-  `docs/runbook.md` §8.
+  `README.md` → "Daily Dose of Tech" → Operations → Frontend changes.
 
 ## Conventions
 
