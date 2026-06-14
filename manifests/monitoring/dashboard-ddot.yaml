@@ -1,0 +1,677 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-ddot-platform
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  ddot-platform.json: |
+    {
+      "description": "Cluster utilisation, web traffic and application health for dailydoseoftech.org",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "type": "row",
+          "title": "Cluster Health",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+          "id": 1,
+          "collapsed": false
+        },
+        {
+          "id": 2,
+          "title": "CPU Utilisation",
+          "type": "gauge",
+          "gridPos": {"h": 7, "w": 4, "x": 0, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+              "legendFormat": "CPU %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 60},
+                  {"color": "red", "value": 85}
+                ]
+              },
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
+          "id": 3,
+          "title": "Memory Utilisation",
+          "type": "gauge",
+          "gridPos": {"h": 7, "w": 4, "x": 4, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "(1 - avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+              "legendFormat": "Memory %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 70},
+                  {"color": "red", "value": 90}
+                ]
+              },
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
+          "id": 4,
+          "title": "Running Pods",
+          "type": "stat",
+          "gridPos": {"h": 3, "w": 4, "x": 8, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "count(kube_pod_status_phase{phase=\"Running\"})",
+              "legendFormat": "Running",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {"mode": "fixed", "fixedColor": "green"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{"color": "green", "value": null}]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "none"
+          }
+        },
+        {
+          "id": 5,
+          "title": "Pending / Failed Pods",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 4},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "count(kube_pod_status_phase{phase=~\"Pending|Failed\"}) or vector(0)",
+              "legendFormat": "Unhealthy",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "red", "value": 1}
+                ]
+              },
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none"
+          }
+        },
+        {
+          "id": 6,
+          "title": "CPU & Memory — Node",
+          "type": "timeseries",
+          "gridPos": {"h": 7, "w": 12, "x": 12, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+              "legendFormat": "CPU %",
+              "refId": "A"
+            },
+            {
+              "expr": "(1 - avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+              "legendFormat": "Memory %",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            }
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "none"}
+          }
+        },
+        {
+          "type": "row",
+          "title": "Web Traffic — dailydoseoftech.org",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 8},
+          "id": 10,
+          "collapsed": false
+        },
+        {
+          "id": 11,
+          "title": "Requests / min (5m avg)",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum(rate(nginx_ingress_controller_requests[5m])) * 60",
+              "legendFormat": "req/min",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 1,
+              "color": {"mode": "fixed", "fixedColor": "blue"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{"color": "blue", "value": null}]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area"
+          }
+        },
+        {
+          "id": 12,
+          "title": "Total Requests — Last 24h",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "round(sum(increase(nginx_ingress_controller_requests[24h])))",
+              "legendFormat": "total",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "color": {"mode": "fixed", "fixedColor": "blue"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{"color": "blue", "value": null}]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "none"
+          }
+        },
+        {
+          "id": 13,
+          "title": "P95 Latency (5m)",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 0.5},
+                  {"color": "red", "value": 1.0}
+                ]
+              },
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none"
+          }
+        },
+        {
+          "id": 14,
+          "title": "5xx Error Rate / min",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum(rate(nginx_ingress_controller_requests{status=~\"5..\"}[5m])) * 60",
+              "legendFormat": "5xx/min",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "red", "value": 0.05}
+                ]
+              },
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none"
+          }
+        },
+        {
+          "id": 15,
+          "title": "Active Connections",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum(nginx_ingress_controller_nginx_process_connections{state=\"active\"})",
+              "legendFormat": "active",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {"mode": "fixed", "fixedColor": "purple"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{"color": "purple", "value": null}]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area"
+          }
+        },
+        {
+          "id": 16,
+          "title": "Request Rate by Status Code",
+          "type": "timeseries",
+          "gridPos": {"h": 9, "w": 14, "x": 0, "y": 13},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum(rate(nginx_ingress_controller_requests{status=~\"2..\"}[5m])) * 60",
+              "legendFormat": "2xx",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(nginx_ingress_controller_requests{status=~\"3..\"}[5m])) * 60",
+              "legendFormat": "3xx",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(nginx_ingress_controller_requests{status=~\"4..\"}[5m])) * 60",
+              "legendFormat": "4xx",
+              "refId": "C"
+            },
+            {
+              "expr": "sum(rate(nginx_ingress_controller_requests{status=~\"5..\"}[5m])) * 60",
+              "legendFormat": "5xx",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {"unit": "short"},
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "2xx"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "3xx"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "4xx"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "5xx"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+              }
+            ]
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]}
+          }
+        },
+        {
+          "id": 17,
+          "title": "HTTP Status Distribution — Last Hour",
+          "type": "piechart",
+          "gridPos": {"h": 9, "w": 10, "x": 14, "y": 13},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by(status)(increase(nginx_ingress_controller_requests[1h]))",
+              "legendFormat": "{{status}}",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "pieType": "donut",
+            "displayLabels": ["name", "percent"],
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "values": ["value", "percent"]
+            },
+            "tooltip": {"mode": "single", "sort": "none"}
+          }
+        },
+        {
+          "id": 18,
+          "title": "Latency Percentiles — p50 / p95 / p99",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 14, "x": 0, "y": 22},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {"unit": "s"},
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "p99"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "p95"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "p50"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+              }
+            ]
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]}
+          }
+        },
+        {
+          "id": 19,
+          "title": "Traffic by Ingress / Service",
+          "type": "bargauge",
+          "gridPos": {"h": 8, "w": 10, "x": 14, "y": 22},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "topk(10, sum by(ingress, service)(increase(nginx_ingress_controller_requests[1h])))",
+              "legendFormat": "{{ingress}} / {{service}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {"mode": "palette-classic"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{"color": "blue", "value": null}]
+              }
+            }
+          },
+          "options": {
+            "orientation": "horizontal",
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "displayMode": "gradient",
+            "showUnfilled": true,
+            "text": {}
+          }
+        },
+        {
+          "type": "row",
+          "title": "Application Health — news-digest",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 30},
+          "id": 20,
+          "collapsed": false
+        },
+        {
+          "id": 21,
+          "title": "Pod Restarts — Last 24h",
+          "type": "bargauge",
+          "gridPos": {"h": 7, "w": 8, "x": 0, "y": 31},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by(pod)(increase(kube_pod_container_status_restarts_total{namespace=\"news-digest\"}[24h]))",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 1},
+                  {"color": "red", "value": 5}
+                ]
+              },
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {
+            "orientation": "horizontal",
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "displayMode": "gradient",
+            "showUnfilled": true
+          }
+        },
+        {
+          "id": 22,
+          "title": "Container Memory — news-digest",
+          "type": "timeseries",
+          "gridPos": {"h": 7, "w": 10, "x": 8, "y": 31},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by(pod)(container_memory_working_set_bytes{namespace=\"news-digest\", container!=\"\", container!=\"POD\"})",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {"unit": "bytes"}
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]}
+          }
+        },
+        {
+          "id": 23,
+          "title": "PostgreSQL PVC Used",
+          "type": "gauge",
+          "gridPos": {"h": 7, "w": 6, "x": 18, "y": 31},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "kubelet_volume_stats_used_bytes{namespace=\"news-digest\"} / kubelet_volume_stats_capacity_bytes{namespace=\"news-digest\"} * 100",
+              "legendFormat": "{{persistentvolumeclaim}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 70},
+                  {"color": "red", "value": 90}
+                ]
+              },
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
+          "id": 24,
+          "title": "Container CPU — news-digest",
+          "type": "timeseries",
+          "gridPos": {"h": 7, "w": 12, "x": 0, "y": 38},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by(pod)(rate(container_cpu_usage_seconds_total{namespace=\"news-digest\", container!=\"\", container!=\"POD\"}[5m]))",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {"unit": "percentunit"}
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"}
+          }
+        },
+        {
+          "id": 25,
+          "title": "Aggregator CronJob — Last Run",
+          "type": "table",
+          "gridPos": {"h": 7, "w": 12, "x": 12, "y": 38},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "kube_job_status_completion_time{namespace=\"news-digest\"} * 1000",
+              "legendFormat": "{{job_name}}",
+              "refId": "A",
+              "instant": true
+            },
+            {
+              "expr": "kube_job_status_failed{namespace=\"news-digest\"}",
+              "legendFormat": "{{job_name}} failed",
+              "refId": "B",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {"unit": "dateTimeFromNow"},
+            "overrides": []
+          },
+          "options": {
+            "sortBy": [{"displayName": "Time", "desc": true}],
+            "footer": {"show": false}
+          },
+          "transformations": [
+            {"id": "labelsToFields", "options": {"mode": "columns"}},
+            {"id": "organize", "options": {}}
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "tags": ["ddot", "kubernetes", "nginx"],
+      "time": {"from": "now-3h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Daily Dose of Tech — Platform",
+      "uid": "ddot-platform",
+      "version": 1
+    }

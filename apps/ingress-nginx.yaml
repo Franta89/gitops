@@ -28,6 +28,10 @@ spec:
               service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"
           ingressClassResource:
             default: true
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: true
           resources:
             requests:
               cpu: 50m

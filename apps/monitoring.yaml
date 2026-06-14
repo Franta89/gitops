@@ -67,6 +67,8 @@ spec:
             serviceMonitorSelectorNilUsesHelmValues: false
             podMonitorNamespaceSelector: {}
             podMonitorSelector: {}
+            serviceMonitorNamespaceSelector: {}
+            serviceMonitorSelector: {}
         alertmanager:
           enabled: false
   destination:
