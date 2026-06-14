@@ -11,7 +11,7 @@ schedule, manual reruns, and troubleshooting.
 
 ## 1. Pipeline overview
 
-```
+```text
 RSS/Atom feeds  ->  rss_fetch()  ->  dedup  ->  diversify_by_source  ->  AI select+summarise  ->  PostgreSQL  ->  API  ->  frontend
    (per area)       per-feed         by URL     cap per source         GPT-4.1-mini             daily_digests / area_summaries / news_items
 ```
@@ -127,6 +127,7 @@ to `known_urls`); the relaxed retry compensates.
 | All areas thin | Many feeds returned 0 in window | Widen `WINDOW_HOURS`, or check for a network/DNS issue from the pod. |
 | Job `BackoffLimitExceeded` | Deterministic crash across all retries | `kubectl logs` the failed pod (logs GC after ~1h — grab them fast); check DB for which areas committed. |
 | Stale content after a code change | Argo hasn't synced, or browser cache | See §5 GitOps gotcha; bump `app.js?v=` for frontend changes. |
+| About page / frontend shows old content after a ConfigMap change | Frontend mounts files via **subPath** — ConfigMap updates do NOT propagate to the running pod | `kubectl rollout restart deployment/frontend -n news-digest` (see §8). |
 
 Verify what's in the DB for a date:
 
@@ -155,3 +156,28 @@ kubectl exec -n news-digest postgres-0 -c postgres -- sh -c \
 
 > Optional cleanup: the AKV `newsapi-key` secret still exists but is unreferenced.
 > It is defined in the `infra-terraform` repo — remove it there for full tidiness.
+
+---
+
+## 8. Updating the frontend / About page
+
+The frontend (`frontend-configmap.yaml`: `index.html`, `style.css`, `app.js`,
+`nginx.conf`) is mounted into the nginx pod via **subPath**. SubPath volume mounts
+do **not** receive ConfigMap updates — the pod keeps the files captured at startup.
+So after editing the frontend ConfigMap and pushing (Argo syncs the ConfigMap
+object), the running pod still serves the old files until restarted:
+
+```bash
+kubectl rollout restart deployment/frontend -n news-digest
+kubectl rollout status  deployment/frontend -n news-digest --timeout=120s
+# verify the SERVED file, not just the ConfigMap:
+POD=$(kubectl get pods -n news-digest -l app=news-frontend -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n news-digest "$POD" -- grep -c "RSS / Atom feeds" /usr/share/nginx/html/app.js
+```
+
+Also bump the `app.js?v=N` query string in `index.html` on any `app.js` change so
+browsers (and the Cloudflare edge) refetch it. Users may still need a hard refresh.
+
+The About-page copy (description, source list) and the ASCII architecture diagram
+live in `app.js` — the `T.en` / `T.cs` objects and `ARCH_DIAGRAM`. Keep both
+languages in sync.
