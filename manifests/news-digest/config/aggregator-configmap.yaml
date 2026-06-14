@@ -12,7 +12,7 @@ data:
     import psycopg2
     import psycopg2.extras
     from datetime import datetime, timedelta, timezone
-    from openai import AzureOpenAI
+    from openai import OpenAI
     from azure.identity import WorkloadIdentityCredential
     from azure.core.credentials import AccessToken
 
@@ -22,7 +22,6 @@ data:
 
     OPENAI_ENDPOINT    = os.environ["OPENAI_ENDPOINT"]
     OPENAI_DEPLOYMENT  = os.environ["OPENAI_DEPLOYMENT"]
-    OPENAI_API_VERSION = os.environ["OPENAI_API_VERSION"]
     DATABASE_URL       = os.environ["DATABASE_URL"]
 
     # Authoritative RSS/Atom feeds per area. Real-time, free, keyless, and
@@ -90,7 +89,7 @@ data:
     }
 
     # ------------------------------------------------------------------
-    # Token provider that wraps WorkloadIdentityCredential for AzureOpenAI
+    # Token provider that wraps WorkloadIdentityCredential for the OpenAI client
     # ------------------------------------------------------------------
     class _TokenProvider:
         def __init__(self):
@@ -397,7 +396,7 @@ data:
     # ------------------------------------------------------------------
     # AI summarisation — area-aware persona and selection criteria
     # ------------------------------------------------------------------
-    def summarize_area(client: AzureOpenAI, area_key: str, area_label: str,
+    def summarize_area(client: OpenAI, area_key: str, area_label: str,
                        candidates: list[dict], known_urls: set[str],
                        relaxed: bool = False) -> dict:
         fresh = [c for c in candidates if c["url"] not in known_urls]
@@ -478,7 +477,7 @@ data:
     # ------------------------------------------------------------------
     # Monthly summary
     # ------------------------------------------------------------------
-    def generate_monthly_summary(conn, client: AzureOpenAI, year: int, month: int):
+    def generate_monthly_summary(conn, client: OpenAI, year: int, month: int):
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute("""
                 SELECT a.area, a.overview, n.title, n.url, n.summary
@@ -542,11 +541,13 @@ data:
         conn = get_conn()
         create_tables(conn)
 
-        token_provider = _TokenProvider()
-        client = AzureOpenAI(
-            azure_ad_token_provider=token_provider,
-            azure_endpoint=OPENAI_ENDPOINT,
-            api_version=OPENAI_API_VERSION,
+        # Azure OpenAI v1 API: stock OpenAI client against the /openai/v1/ base
+        # URL with an Entra ID bearer token (no dated api-version — the v1 API
+        # drops it, avoiding preview/dated-route breakage). The token is valid for
+        # the whole short-lived job.
+        client = OpenAI(
+            base_url=OPENAI_ENDPOINT,
+            api_key=_TokenProvider()(),
         )
 
         now_utc = datetime.now(timezone.utc)

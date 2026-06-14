@@ -4,7 +4,9 @@ metadata:
   name: news-digest-settings
   namespace: news-digest
 data:
-  OPENAI_ENDPOINT: "https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/"
+  # Azure OpenAI v1 API (base URL ends in /openai/v1/). The v1 API removes dated
+  # api-version params — avoids preview/dated-route breakage. The app uses the
+  # stock OpenAI client with an Entra ID bearer token; no OPENAI_API_VERSION.
+  OPENAI_ENDPOINT: "https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/"
   OPENAI_DEPLOYMENT: "gpt-5.4-mini"
-  OPENAI_API_VERSION: "2025-01-01-preview"
   LOG_LEVEL: "INFO"
