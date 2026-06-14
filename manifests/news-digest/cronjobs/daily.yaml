@@ -1,5 +1,6 @@
 # Runs at 06:30 CET/CEST daily. timeZone handles DST automatically.
-# Looks back 25 hours for news, skips URLs already stored in the DB.
+# Pulls news from authoritative RSS feeds (48-72h window), skips URLs
+# already stored in the DB.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -35,7 +36,8 @@ spec:
                     "openai~=1.57.4" \
                     "azure-identity~=1.19.0" \
                     "psycopg2-binary~=2.9.10" \
-                    "requests~=2.32.3" &&
+                    "requests~=2.32.3" \
+                    "feedparser~=6.0.11" &&
                   python /scripts/aggregator.py daily
               workingDir: /scripts
               securityContext:
@@ -45,8 +47,6 @@ spec:
               envFrom:
                 - configMapRef:
                     name: news-digest-settings
-                - secretRef:
-                    name: newsapi-secret
                 - secretRef:
                     name: postgres-secret
               resources:

@@ -46,8 +46,6 @@ spec:
                 - configMapRef:
                     name: news-digest-settings
                 - secretRef:
-                    name: newsapi-secret
-                - secretRef:
                     name: postgres-secret
               resources:
                 requests:

@@ -23,45 +23,53 @@ data:
     OPENAI_ENDPOINT    = os.environ["OPENAI_ENDPOINT"]
     OPENAI_DEPLOYMENT  = os.environ["OPENAI_DEPLOYMENT"]
     OPENAI_API_VERSION = os.environ["OPENAI_API_VERSION"]
-    NEWSAPI_KEY        = os.environ["NEWSAPI_KEY"]
-    NEWSAPI_ENDPOINT   = "https://newsapi.org/v2/everything"
     DATABASE_URL       = os.environ["DATABASE_URL"]
 
-    TOPICS = {
-        "cloud_computing": (
-            'Azure OR AWS OR "Google Cloud" OR Kubernetes OR "cloud computing"'
-            ' OR "cloud native" OR serverless OR "platform engineering"'
-            ' OR "data center" OR "edge computing" OR Terraform OR "cloud outage"'
-        ),
-        "ai_development": (
-            '"artificial intelligence" OR "machine learning" OR LLM OR OpenAI OR GPT'
-            ' OR "generative AI" OR "foundation model" OR RAG OR transformer OR inference'
-        ),
-        "it_security": (
-            'cybersecurity OR "security breach" OR vulnerability OR ransomware'
-            ' OR "zero-day" OR "data breach" OR CVE OR exploit OR malware OR CISA'
-            ' OR phishing OR "supply chain attack" OR "threat actor"'
-            ' OR "security advisory" OR "patch"'
-        ),
-        "financial_markets": (
-            '"stock market" OR "Wall Street" OR "S&P 500" OR "NASDAQ" OR "Dow Jones"'
-            ' OR "Federal Reserve" OR "central bank" OR "interest rates" OR "earnings"'
-            ' OR IPO OR "bond market" OR "hedge fund" OR "market cap" OR "M&A"'
-            ' OR "quarterly results" OR "investor" OR "shares" OR "valuation"'
-        ),
-        "world_news": (
-            'geopolitics OR diplomacy OR "international relations" OR "foreign policy"'
-            ' OR "United Nations" OR "climate change" OR humanitarian OR conflict'
-            ' OR "world news" OR "military" OR "sanctions" OR "peace talks"'
-        ),
-    }
-
-    TOPICS_FALLBACK = {
-        "cloud_computing":   "cloud computing OR Azure OR AWS",
-        "ai_development":    "artificial intelligence OR machine learning",
-        "it_security":       "cybersecurity OR data breach",
-        "financial_markets": "stock market OR financial markets",
-        "world_news":        "world news OR international OR geopolitics",
+    # Authoritative RSS/Atom feeds per area. Real-time, free, keyless, and
+    # compliant (public syndication). The AI selection layer downstream does the
+    # relevance filtering, so feeds are chosen for source quality, not keywords.
+    # World News and Financial Markets get wider lists since strong stories there
+    # can break anywhere globally.
+    AREA_FEEDS = {
+        "cloud_computing": [
+            "https://thenewstack.io/feed/",
+            "https://www.theregister.com/headlines.atom",
+            "https://techcrunch.com/feed/",
+            "https://www.zdnet.com/news/rss.xml",
+            "https://feeds.arstechnica.com/arstechnica/technology-lab",
+        ],
+        "ai_development": [
+            "https://venturebeat.com/category/ai/feed/",
+            "https://techcrunch.com/category/artificial-intelligence/feed/",
+            "https://www.theverge.com/rss/index.xml",
+            "https://feeds.arstechnica.com/arstechnica/technology-lab",
+            "https://www.wired.com/feed/tag/ai/latest/rss",
+        ],
+        "it_security": [
+            "https://www.bleepingcomputer.com/feed/",
+            "https://feeds.feedburner.com/TheHackersNews",
+            "https://krebsonsecurity.com/feed/",
+            "https://www.securityweek.com/feed/",
+            "https://www.darkreading.com/rss.xml",
+        ],
+        "financial_markets": [
+            "https://www.cnbc.com/id/20910258/device/rss/rss.html",
+            "https://feeds.marketwatch.com/marketwatch/topstories/",
+            "https://finance.yahoo.com/news/rssindex",
+            "https://www.investing.com/rss/news.rss",
+            "https://feeds.bbci.co.uk/news/business/rss.xml",
+            "https://www.theguardian.com/uk/business/rss",
+            "https://seekingalpha.com/market_currents.xml",
+        ],
+        "world_news": [
+            "https://feeds.bbci.co.uk/news/world/rss.xml",
+            "https://www.aljazeera.com/xml/rss/all.xml",
+            "https://www.theguardian.com/world/rss",
+            "https://feeds.npr.org/1004/rss.xml",
+            "https://rss.dw.com/rdf/rss-en-world",
+            "https://www.france24.com/en/rss",
+            "http://rss.cnn.com/rss/edition_world.rss",
+        ],
     }
 
     AREA_LABELS = {
@@ -72,27 +80,13 @@ data:
         "world_news":        "World News",
     }
 
-    # NewsAPI's free Developer tier serves articles with a ~24h delay, so a 25h
-    # window only exposes a ~1h sliver of *available* articles. Look back far
-    # enough to capture a full day of matured news; cross-day dedup (known_urls)
-    # prevents anything already published in the digest from repeating. Thin,
-    # low-volume areas get a wider window to accumulate enough candidates.
+    # Look-back window per area. Cross-day dedup (known_urls) prevents anything
+    # already published in the digest from repeating, so a wider window simply
+    # gives low-volume areas more candidates to choose from.
     DEFAULT_WINDOW_HOURS = 48
     WINDOW_HOURS = {
         "cloud_computing": 72,
         "it_security":     72,
-    }
-
-    # Authoritative, high-signal domains per area. A second NewsAPI pass
-    # restricted to these is merged ahead of the broad pass so strong outlets
-    # lead the candidate pool the AI selects from. Broad pass still runs, so
-    # nothing outside the list is excluded — these are only prioritised.
-    AREA_SOURCES = {
-        "cloud_computing":   "theregister.com,infoworld.com,techcrunch.com,zdnet.com,arstechnica.com,infoq.com",
-        "ai_development":    "venturebeat.com,techcrunch.com,arstechnica.com,theverge.com,wired.com,zdnet.com",
-        "it_security":       "bleepingcomputer.com,thehackernews.com,krebsonsecurity.com,securityweek.com,darkreading.com,arstechnica.com",
-        "financial_markets": "reuters.com,bloomberg.com,cnbc.com,wsj.com,ft.com,marketwatch.com",
-        "world_news":        "reuters.com,apnews.com,bbc.co.uk,aljazeera.com,theguardian.com,dw.com",
     }
 
     # ------------------------------------------------------------------
@@ -223,7 +217,7 @@ data:
                       item["url"], item["summary"], item.get("summary_cs", "")))
 
     # ------------------------------------------------------------------
-    # NewsAPI search — fetch up to 25 candidates from the last 25 hours
+    # RSS retrieval — real-time, keyless, compliant
     # ------------------------------------------------------------------
     def _domain_of(url: str) -> str:
         try:
@@ -242,35 +236,54 @@ data:
     PER_DOMAIN_CAP    = 2   # ordinary sources
     PER_AGGREGATOR_CAP = 1  # package indexes / changelog feeds
 
-    # popularity favours reputable outlets over keyword-dense release notes;
-    # fetch a wide pool, then diversify by source before handing to the AI.
-    def newsapi_search(query: str, since: datetime, page_size: int = 50,
-                       domains: str = "") -> list[dict]:
-        params = {
-            "q":        query,
-            "from":     since.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "sortBy":   "popularity",
-            "pageSize": page_size,
-            "language": "en",
-            "apiKey":   NEWSAPI_KEY,
-        }
-        if domains:
-            params["domains"] = domains
-        resp = requests.get(NEWSAPI_ENDPOINT, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("status") != "ok":
-            raise RuntimeError(f"NewsAPI error: {data.get('message', data)}")
+    _HTTP_HEADERS = {"User-Agent": "ddot-aggregator/1.0 (+https://dailydoseoftech.org)"}
+
+    def _strip_html(text: str) -> str:
+        import re as _re
+        from html import unescape
+        return unescape(_re.sub(r"<[^>]+>", "", text or "")).strip()
+
+    # Pull recent entries from a list of RSS/Atom feeds. Each feed is fetched
+    # with a timeout and parsed independently — a broken or stale feed is logged
+    # and skipped, never aborting the area. Entries older than `since` are
+    # dropped; entries without a parseable date are kept (feeds are recent).
+    def rss_fetch(feeds: list[str], since: datetime, per_feed: int = 20) -> list[dict]:
+        import feedparser
+        from calendar import timegm
         results = []
-        for article in data.get("articles", []):
-            url = article.get("url", "")
-            results.append({
-                "title":   article.get("title", ""),
-                "url":     url,
-                "source":  (article.get("source") or {}).get("name") or _domain_of(url),
-                "snippet": article.get("description") or article.get("content", ""),
-            })
-        log.info("NewsAPI returned %d results for query: %s", len(results), query[:60])
+        for url in feeds:
+            try:
+                resp = requests.get(url, headers=_HTTP_HEADERS, timeout=15)
+                resp.raise_for_status()
+                parsed = feedparser.parse(resp.content)
+            except Exception as exc:
+                log.warning("RSS feed failed (%s): %s", url, exc)
+                continue
+            feed_title = ""
+            if parsed.get("feed"):
+                feed_title = parsed.feed.get("title", "")
+            feed_title = feed_title or _domain_of(url)
+            count = 0
+            for entry in parsed.entries:
+                tm = entry.get("published_parsed") or entry.get("updated_parsed")
+                if tm is not None:
+                    published = datetime.fromtimestamp(timegm(tm), tz=timezone.utc)
+                    if published < since:
+                        continue
+                link = entry.get("link", "")
+                if not link:
+                    continue
+                results.append({
+                    "title":   _strip_html(entry.get("title", "")),
+                    "url":     link,
+                    "source":  feed_title,
+                    "snippet": _strip_html(entry.get("summary", ""))[:500],
+                })
+                count += 1
+                if count >= per_feed:
+                    break
+            log.info("RSS %s -> %d recent entries", _domain_of(url), count)
+        log.info("RSS total %d candidates from %d feeds", len(results), len(feeds))
         return results
 
     # Cap how many articles any single source contributes so one busy feed
@@ -552,22 +565,15 @@ data:
         conn.commit()
 
         failed_areas = []
-        for area, query in TOPICS.items():
+        for area in AREA_FEEDS:
             # Isolate each area: a failure in one must not abort the others.
             try:
                 log.info("Processing area: %s", area)
                 window = WINDOW_HOURS.get(area, DEFAULT_WINDOW_HOURS)
                 since = now_utc - timedelta(hours=window)
 
-                # Two-pass retrieval: an authoritative-source pass first, then the
-                # broad popularity pass. Merge with the quality sources leading so
-                # they rank ahead before diversification.
-                candidates = []
-                source_list = AREA_SOURCES.get(area, "")
-                if source_list:
-                    candidates += newsapi_search(query, since, domains=source_list)
-                candidates += newsapi_search(query, since)
-
+                # Pull and de-duplicate entries across the area's RSS feeds.
+                candidates = rss_fetch(AREA_FEEDS[area], since)
                 seen_urls: set[str] = set()
                 merged = []
                 for c in candidates:
@@ -579,10 +585,7 @@ data:
                          area, len(candidates), window)
 
                 if not candidates:
-                    log.warning("No results for %s — retrying with fallback query", area)
-                    candidates = newsapi_search(TOPICS_FALLBACK[area], since)
-                if not candidates:
-                    log.error("No NewsAPI results for %s even with fallback — skipping", area)
+                    log.error("No RSS results for %s — skipping", area)
                     continue
                 diversified = diversify_by_source(candidates)
                 result = summarize_area(client, area, AREA_LABELS[area], diversified, known_urls)
