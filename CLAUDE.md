@@ -68,11 +68,11 @@ All secrets in Azure Key Vault via the AKV CSI driver — no key-based external 
   pinned pip versions. Acceptable for dev/test; a production version would use
   custom images in ACR.
 - NetworkPolicy restricts postgres access to API and worker pods only.
-- The **frontend** ConfigMap (`frontend-configmap.yaml`) is mounted via **subPath**,
-  so ConfigMap edits do NOT reach the running pod automatically. After changing
-  it (incl. the About page / architecture diagram), run
-  `kubectl rollout restart deployment/frontend -n news-digest` and bump
-  `app.js?v=N`. See `docs/runbook.md` §8.
+- The **frontend** assets live in two ConfigMaps (`frontend-assets`,
+  `frontend-nginx`) mounted as **directories** (not subPath), so edits propagate
+  to the running pod automatically — no rollout restart needed. Still bump
+  `app.js?v=N` on `app.js` changes for browser/CDN cache-busting. See
+  `docs/runbook.md` §8.
 
 ## Conventions
 

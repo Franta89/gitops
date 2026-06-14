@@ -1,10 +1,12 @@
+# Two ConfigMaps mounted as DIRECTORIES (not subPath) so edits propagate to the
+# running pod automatically — no rollout restart needed. See docs/runbook.md §8.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: frontend-html
+  name: frontend-nginx
   namespace: news-digest
 data:
-  nginx.conf: |
+  default.conf: |
     server {
         listen 8080;
         server_name _;
@@ -27,7 +29,13 @@ data:
             proxy_set_header X-Real-IP $remote_addr;
         }
     }
-
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-assets
+  namespace: news-digest
+data:
   index.html: |
     <!DOCTYPE html>
     <html lang="en">

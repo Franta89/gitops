@@ -127,7 +127,7 @@ to `known_urls`); the relaxed retry compensates.
 | All areas thin | Many feeds returned 0 in window | Widen `WINDOW_HOURS`, or check for a network/DNS issue from the pod. |
 | Job `BackoffLimitExceeded` | Deterministic crash across all retries | `kubectl logs` the failed pod (logs GC after ~1h — grab them fast); check DB for which areas committed. |
 | Stale content after a code change | Argo hasn't synced, or browser cache | See §5 GitOps gotcha; bump `app.js?v=` for frontend changes. |
-| About page / frontend shows old content after a ConfigMap change | Frontend mounts files via **subPath** — ConfigMap updates do NOT propagate to the running pod | `kubectl rollout restart deployment/frontend -n news-digest` (see §8). |
+| About page / frontend shows old content after a ConfigMap change | Argo hasn't synced yet, or browser/CDN cache | Wait for Argo sync (~1-3 min); the pod auto-propagates the change (directory mount). Bump `app.js?v=N` and hard-refresh (see §8). |
 
 Verify what's in the DB for a date:
 
@@ -161,22 +161,30 @@ kubectl exec -n news-digest postgres-0 -c postgres -- sh -c \
 
 ## 8. Updating the frontend / About page
 
-The frontend (`frontend-configmap.yaml`: `index.html`, `style.css`, `app.js`,
-`nginx.conf`) is mounted into the nginx pod via **subPath**. SubPath volume mounts
-do **not** receive ConfigMap updates — the pod keeps the files captured at startup.
-So after editing the frontend ConfigMap and pushing (Argo syncs the ConfigMap
-object), the running pod still serves the old files until restarted:
+The frontend assets are split across two ConfigMaps, both mounted as
+**directories** (not subPath):
+
+| ConfigMap | Keys | Mount |
+| --- | --- | --- |
+| `frontend-assets` | `index.html`, `style.css`, `app.js` | `/usr/share/nginx/html` |
+| `frontend-nginx` | `default.conf` | `/etc/nginx/conf.d` |
+
+Because they are directory mounts, **ConfigMap edits propagate to the running pod
+automatically** — kubelet refreshes the files within ~1 min and nginx serves them
+on the next request. No `rollout restart` is required. (subPath mounts, which were
+used previously, do *not* auto-update — that's why this was split.)
+
+Workflow for a frontend change:
+
+1. Edit the ConfigMap in `frontend-configmap.yaml`.
+2. Bump `app.js?v=N` in `index.html` on any `app.js` change (browser/CDN cache-bust).
+3. Commit + push to `main`; Argo syncs the ConfigMap, the pod auto-updates.
+4. Hard-refresh the browser. Optionally verify the served file:
 
 ```bash
-kubectl rollout restart deployment/frontend -n news-digest
-kubectl rollout status  deployment/frontend -n news-digest --timeout=120s
-# verify the SERVED file, not just the ConfigMap:
 POD=$(kubectl get pods -n news-digest -l app=news-frontend -o jsonpath='{.items[0].metadata.name}')
 kubectl exec -n news-digest "$POD" -- grep -c "RSS / Atom feeds" /usr/share/nginx/html/app.js
 ```
-
-Also bump the `app.js?v=N` query string in `index.html` on any `app.js` change so
-browsers (and the Cloudflare edge) refetch it. Users may still need a hard refresh.
 
 The About-page copy (description, source list) and the ASCII architecture diagram
 live in `app.js` — the `T.en` / `T.cs` objects and `ARCH_DIAGRAM`. Keep both
