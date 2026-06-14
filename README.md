@@ -109,11 +109,14 @@ retry compensates.
 > self-heal within ~2 min — a manual rerun would then run the old code.
 
 **Frontend changes:** the frontend assets are two ConfigMaps (`frontend-assets`,
-`frontend-nginx`) mounted as **directories** (not subPath), so edits propagate to
-the running pod automatically — no restart. Still bump `app.js?v=N` on `app.js`
-changes for browser/CDN cache-busting. The About-page copy and the ASCII
-architecture diagram live in `app.js` (`T.en` / `T.cs`, `ARCH_DIAGRAM`) — keep both
-languages in sync.
+`frontend-nginx`) mounted as **directories** (not subPath). **Static** changes
+(`index.html`, `style.css`, `app.js`) propagate to the running pod automatically —
+nginx reads those per request, no restart needed. **nginx config** changes
+(`frontend-nginx` / `default.conf`, e.g. the security headers) only take effect
+after `kubectl rollout restart deployment/frontend -n news-digest`, since nginx
+reads its config only at startup. Still bump `app.js?v=N` on `app.js` changes for
+browser/CDN cache-busting. The About-page copy and the ASCII architecture diagram
+live in `app.js` (`T.en` / `T.cs`, `ARCH_DIAGRAM`) — keep both languages in sync.
 
 **Troubleshooting:**
 
