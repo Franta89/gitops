@@ -19,29 +19,45 @@ exist before the ddot app can run.
 1. `infra-terraform` provisions AKS, Azure AI Services (GPT-5.4-mini), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
 2. Copy two Terraform outputs into gitops manifests (see placeholders in `manifests/news-digest/`).
 3. `kubectl apply -f bootstrap/root-app.yaml` registers the app-of-apps.
-4. Argo CD syncs `apps/` in wave order: Strimzi (0) → Kafka (1) → cert-manager + ingress-nginx (2) → monitoring + postgresql (3) → config (4) → ddot app (5).
+4. Argo CD syncs `apps/` in wave order: Strimzi (0) → Kafka (1) → cert-manager + alb-controller (2) → monitoring + postgresql (3) → config (4) → ddot app (5).
 
 ## Applications
 
-| App                 | Wave | Namespace     | Purpose                           |
-| ------------------- | ---- | ------------- | --------------------------------- |
-| strimzi-operator    | 0    | kafka         | Strimzi CRDs + operator           |
-| kafka-cluster       | 1    | kafka         | KRaft Kafka cluster               |
-| cert-manager        | 2    | cert-manager  | TLS certificate management        |
-| ingress-nginx       | 2    | ingress-nginx | Public NGINX ingress controller   |
-| monitoring          | 3    | monitoring    | Prometheus + Grafana              |
-| postgresql          | 3    | puzzle        | PostgreSQL for puzzle app         |
-| cert-manager-config | 4    | cert-manager  | Let's Encrypt ClusterIssuer       |
-| monitoring-config   | 4    | monitoring    | PodMonitors + dashboards          |
-| news-digest (ddot)  | 5    | news-digest   | Daily Dose of Tech web app        |
+| App                 | Wave | Namespace        | Purpose                            |
+| ------------------- | ---- | ---------------- | ---------------------------------- |
+| strimzi-operator    | 0    | kafka            | Strimzi CRDs + operator            |
+| kafka-cluster       | 1    | kafka            | KRaft Kafka cluster                |
+| cert-manager        | 2    | cert-manager     | TLS certificate management         |
+| alb-controller      | 2    | azure-alb-system | Gateway API controller (Azure AGC) |
+| monitoring          | 3    | monitoring       | Prometheus + Grafana               |
+| postgresql          | 3    | puzzle           | PostgreSQL for puzzle app          |
+| cert-manager-config | 4    | cert-manager     | Let's Encrypt ClusterIssuer        |
+| monitoring-config   | 4    | monitoring       | PodMonitors + dashboards           |
+| news-digest (ddot)  | 5    | news-digest      | Daily Dose of Tech web app         |
 
 ## Daily Dose of Tech (ddot)
 
 Public URL: **<https://dailydoseoftech.org>** and **<https://www.dailydoseoftech.org>**
 
-DNS is live and proxied through **Cloudflare** (orange cloud enabled).
-TLS certificates issued by Let's Encrypt via **DNS-01 challenge** (Cloudflare API token).
-Cloudflare SSL/TLS mode must be set to **Full (strict)**.
+DNS is live and proxied through **Cloudflare** (orange cloud enabled). Because the
+public entry point is now **Azure Application Gateway for Containers (AGC)**, which
+exposes a generated FQDN rather than a static IP, the Cloudflare records for both
+hosts are **CNAMEs → the AGC FQDN** (`terraform output alb_frontend_fqdn`); Cloudflare
+CNAME-flattening makes this work at the apex. TLS certificates issued by Let's Encrypt
+via **DNS-01 challenge** (Cloudflare API token) — an explicit cert-manager
+`Certificate` (`manifests/news-digest/certificate.yaml`) writes the `dailydoseoftech-tls`
+Secret that the Gateway's HTTPS listener references. Cloudflare SSL/TLS mode must be
+set to **Full (strict)**.
+
+### Routing — Gateway API (not Ingress)
+
+Traffic enters via the **Gateway API** (`ingress-nginx` was retired; it is now
+upstream maintenance-only). The `alb-controller` app installs the Gateway API CRDs
+and the `azure-alb-external` GatewayClass and programs the Terraform-provisioned AGC
+(BYO model). A single shared `Gateway` (`ddot-gateway` in `news-digest`) terminates
+TLS; `HTTPRoute`s attach to it: the app at `/` (`manifests/news-digest/httproute.yaml`)
+and Grafana at `/grafana` (`manifests/monitoring/grafana-httproute.yaml`, cross-namespace).
+An HTTP→HTTPS 301 redirect route replaces the old nginx force-ssl-redirect annotation.
 
 The app gathers news in real time from authoritative **RSS/Atom feeds** (per-area
 lists in `aggregator.py`: BBC, The Guardian, CNBC, The Register, BleepingComputer,
@@ -73,7 +89,11 @@ key-based external APIs.
 - Scripts for ddot are mounted via ConfigMap into `python:3.12-slim` pods with
   pinned pip versions. Acceptable for dev/test; a production version would use
   custom images in ACR.
-- NetworkPolicy restricts postgres access to API and worker pods only.
+- NetworkPolicy restricts postgres access to API and worker pods only. Public
+  ingress to the frontend is allowed from the **AGC delegated subnet CIDR**
+  (`ipBlock`, not a namespaceSelector) because AGC delivers traffic from
+  `snet-alb`, not from an in-cluster controller pod. Keep the CIDR in
+  `networkpolicy.yaml` in sync with `snet-alb` in infra-terraform.
 - The **frontend** assets live in two ConfigMaps (`frontend-assets`,
   `frontend-nginx`) mounted as **directories** (not subPath), so edits propagate
   to the running pod automatically — no rollout restart needed. Still bump
@@ -121,8 +141,10 @@ manifests/
   news-digest/                Daily Dose of Tech application
     namespace.yaml            Namespace with workload-identity label
     serviceaccount.yaml       ServiceAccount with Managed Identity annotation (fill after tf apply)
-    networkpolicy.yaml        Restrict postgres, api, and frontend ingress
-    ingress.yaml              dailydoseoftech.org + www, DNS-01 TLS
+    networkpolicy.yaml        Restrict postgres + api; allow frontend from AGC subnet
+    gateway.yaml              Gateway API Gateway (AGC); fill alb-id after tf apply
+    httproute.yaml            HTTPRoutes: app at / + HTTP→HTTPS redirect
+    certificate.yaml          cert-manager Certificate → dailydoseoftech-tls Secret
     postgres/                 StatefulSet, Service, Secret (dev placeholder)
     config/                   ConfigMaps: settings, scripts (aggregator.py, api.py), frontend HTML/CSS/JS
     api/                      FastAPI Deployment + Service
@@ -141,6 +163,12 @@ manifests/
       AI Services **v1 API** base URL (`https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/`)
       and `OPENAI_DEPLOYMENT` to `gpt-5.4-mini`. The app calls AI Services directly; the
       Foundry Hub is provisioned but NOT in the inference path (no Hub connection needed).
-- [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict), then enable orange-cloud proxy on both A records.
+- [ ] After `terraform apply`: paste `alb_controller_client_id` into `apps/alb-controller.yaml`
+      (`albController.podIdentity.clientID`) and `alb_id` into `manifests/news-digest/gateway.yaml`
+      (`alb.networking.azure.io/alb-id`). If `snet-alb` is not `10.0.2.0/24`, also update the
+      `ipBlock` in `manifests/news-digest/networkpolicy.yaml` (`terraform output alb_subnet_cidr`).
+- [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict). Point both records at the
+      AGC FQDN as **CNAME → `terraform output alb_frontend_fqdn`** (CNAME-flattening handles the
+      apex), then keep orange-cloud proxy enabled on both.
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.

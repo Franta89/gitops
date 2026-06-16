@@ -30,19 +30,10 @@ spec:
               memory: 128Mi
             limits:
               memory: 256Mi
+          # Grafana is exposed via Gateway API, not Ingress. The route lives in
+          # manifests/monitoring/grafana-httproute.yaml (attached to ddot-gateway).
           ingress:
-            enabled: true
-            ingressClassName: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
-              nginx.ingress.kubernetes.io/ssl-redirect: "true"
-            hosts:
-              - dailydoseoftech.org
-            path: /grafana
-            tls:
-              - secretName: grafana-tls
-                hosts:
-                  - dailydoseoftech.org
+            enabled: false
           grafana.ini:
             server:
               root_url: "https://dailydoseoftech.org/grafana"

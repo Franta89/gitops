@@ -1,0 +1,40 @@
+# Application Gateway for Containers — ALB Controller. Wave 2 (replaces the old
+# ingress-nginx app). Translates Gateway API objects into Azure AGC config.
+#
+# The chart ALSO installs the Gateway API CRDs and the `azure-alb-external`
+# GatewayClass, so no separate CRD/GatewayClass app is needed. ServerSideApply
+# is required: the Gateway API CRDs exceed the client-side last-applied
+# annotation size limit.
+#
+# clientID below is the user-assigned identity created in infra-terraform
+# (module app-gateway-containers). Fill it from:  terraform output alb_controller_client_id
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alb-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: mcr.microsoft.com/application-lb/charts
+    chart: alb-controller
+    targetRevision: 1.10.28
+    helm:
+      releaseName: alb-controller
+      values: |
+        albController:
+          namespace: azure-alb-system
+          podIdentity:
+            clientID: <ALB_CONTROLLER_CLIENT_ID>
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: azure-alb-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
