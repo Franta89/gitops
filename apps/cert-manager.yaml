@@ -16,6 +16,12 @@ spec:
       releaseName: cert-manager
       values: |
         installCRDs: true
+        # Expose cert-manager metrics + a ServiceMonitor so the Grafana dashboard
+        # can show certificate time-to-expiry (certmanager_certificate_expiration_*).
+        prometheus:
+          enabled: true
+          servicemonitor:
+            enabled: true
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager

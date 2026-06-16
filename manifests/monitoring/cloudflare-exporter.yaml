@@ -1,0 +1,87 @@
+# Cloudflare exporter — pulls zone analytics (unique visitors, requests, bandwidth,
+# status codes, countries, threats) from the Cloudflare GraphQL API and exposes them
+# to Prometheus. This is how "how many users visited the site" is measured now that
+# ingress-nginx (which used to provide request metrics) is gone.
+#
+# Auth: the cloudflare-exporter-token Secret (CF_API_TOKEN) is materialised from Key
+# Vault by the monitoring secret-sync (manifests/monitoring/secret-provider-class.yaml).
+# The token must have Zone:Read + Analytics:Read in Cloudflare.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflare-exporter
+  namespace: monitoring
+  labels:
+    app: cloudflare-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflare-exporter
+  template:
+    metadata:
+      labels:
+        app: cloudflare-exporter
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflare-exporter
+          image: ghcr.io/lablabs/cloudflare_exporter:0.2.3
+          args: ["--listen=:8080"]
+          env:
+            # FREE_TIER tailors the GraphQL queries to a free Cloudflare plan.
+            - name: FREE_TIER
+              value: "true"
+            - name: SCRAPE_INTERVAL
+              value: "300"
+          envFrom:
+            - secretRef:
+                name: cloudflare-exporter-token   # provides CF_API_TOKEN
+          ports:
+            - name: metrics
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudflare-exporter
+  namespace: monitoring
+  labels:
+    app: cloudflare-exporter
+spec:
+  selector:
+    app: cloudflare-exporter
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cloudflare-exporter
+  namespace: monitoring
+  labels:
+    app: cloudflare-exporter
+spec:
+  selector:
+    matchLabels:
+      app: cloudflare-exporter
+  endpoints:
+    - port: metrics
+      interval: 60s
