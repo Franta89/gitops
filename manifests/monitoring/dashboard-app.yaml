@@ -363,22 +363,9 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "s",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 1209600
-                  },
-                  {
-                    "color": "green",
-                    "value": 2592000
-                  }
-                ]
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "purple"
               }
             }
           },
@@ -388,7 +375,7 @@ data:
                 "lastNotNull"
               ]
             },
-            "colorMode": "background"
+            "colorMode": "value"
           }
         },
         {
