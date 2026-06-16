@@ -68,7 +68,7 @@ data:
               "unit": "short",
               "color": {
                 "mode": "fixed",
-                "fixedColor": "purple"
+                "fixedColor": "green"
               }
             }
           },
@@ -418,7 +418,7 @@ data:
               "unit": "short",
               "color": {
                 "mode": "fixed",
-                "fixedColor": "purple"
+                "fixedColor": "green"
               },
               "custom": {
                 "fillOpacity": 80,
