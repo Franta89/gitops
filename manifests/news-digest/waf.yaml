@@ -1,0 +1,16 @@
+# Attaches the Azure WAF policy to the whole Gateway (covers app, Grafana, Argo CD).
+# OWASP 3.2 managed rules (Prevention) + origin lock (blocks any source that is not
+# a Cloudflare edge IP). Provisioned in infra-terraform (module app-gateway-containers).
+apiVersion: alb.networking.azure.io/v1
+kind: WebApplicationFirewallPolicy
+metadata:
+  name: ddot-waf
+  namespace: news-digest
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: ddot-gateway
+    namespace: news-digest
+  webApplicationFirewall:
+    id: /subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.Network/applicationGatewayWebApplicationFirewallPolicies/waf-ddot-dev-swc-001
