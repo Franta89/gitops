@@ -183,5 +183,12 @@ manifests/
       `webApplicationFirewall.id = terraform output waf_policy_id`. Template + rationale
       in `infra-terraform/whatnext.md` (kept out of the repo until the policy exists so
       Argo never pushes an invalid id at the live Gateway).
+- [ ] In Cloudflare: add **Zone:Read + Analytics:Read** permissions to the
+      `cloudflare-api-token` (currently DNS:Edit only) so the cloudflare-exporter can
+      read zone analytics. The token VALUE is unchanged (Key Vault secret stays the
+      same) — only its permissions change. Verify after ~1 min:
+      `kubectl exec -n monitoring deploy/cloudflare-exporter -- wget -qO- localhost:8080/metrics | grep cloudflare_zone_requests_total`
+      (and the Grafana "Site Traffic — Cloudflare" row populates). The exporter pod
+      stays Running regardless; it just has no zone metrics until the token can read them.
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
