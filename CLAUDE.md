@@ -110,6 +110,8 @@ key-based external APIs.
   Plaintext secret file paths are listed in `.gitignore` as a safety net.
 - All containers: `allowPrivilegeEscalation: false`, `capabilities.drop: ALL`,
   `seccompProfile: RuntimeDefault`. CPU and memory limits set on every container.
+- **Full security posture (how the cluster is hardened) is documented in
+  [`SECURITY.md`](SECURITY.md);** forward-looking backlog in `infra-terraform/whatnext.md`.
 
 ## Azure Key Vault secret workflow
 
