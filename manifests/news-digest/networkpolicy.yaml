@@ -24,30 +24,13 @@ spec:
         - protocol: TCP
           port: 5432
 ---
-# Allow the Application Gateway for Containers data path to reach the frontend on
-# port 80. AGC delivers traffic from its delegated subnet (snet-alb), not from an
-# in-cluster controller pod, so we match the subnet CIDR with an ipBlock instead
-# of a namespaceSelector. Keep this CIDR in sync with the snet-alb address_prefix
-# in infra-terraform (terraform output alb_subnet_cidr).
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: frontend-ingress
-  namespace: news-digest
-spec:
-  podSelector:
-    matchLabels:
-      app: news-frontend
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - ipBlock:
-            cidr: 10.0.2.0/24
-      ports:
-        - protocol: TCP
-          port: 80
----
+# NOTE: the frontend has NO NetworkPolicy. It is the app's public web entry point
+# and is protected at the edge (Cloudflare proxy + AGC WAF origin-lock). Pinning an
+# ipBlock to AGC's source IP proved unreliable under the Cilium dataplane (AGC enters
+# from outside the pod network and is not seen as the delegated-subnet CIDR), so
+# in-cluster ingress to the frontend is left open. The sensitive tiers — Postgres and
+# the API — remain restricted by the identity-based (podSelector) policies here.
+#
 # Allow the frontend pods to reach the API within the namespace. Public traffic
 # reaches the API only via the frontend nginx proxy, so no AGC ipBlock is needed here.
 apiVersion: networking.k8s.io/v1
