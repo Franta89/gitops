@@ -42,7 +42,7 @@ Public URL: **<https://dailydoseoftech.org>** and **<https://www.dailydoseoftech
 DNS is live and proxied through **Cloudflare** (orange cloud enabled). Because the
 public entry point is now **Azure Application Gateway for Containers (AGC)**, which
 exposes a generated FQDN rather than a static IP, the Cloudflare records for both
-hosts are **CNAMEs → the AGC FQDN** (`terraform output alb_frontend_fqdn`); Cloudflare
+hosts are **CNAMEs → the AGC FQDN** (the Gateway's runtime address — see below); Cloudflare
 CNAME-flattening makes this work at the apex. TLS certificates issued by Let's Encrypt
 via **DNS-01 challenge** (Cloudflare API token) — an explicit cert-manager
 `Certificate` (`manifests/news-digest/certificate.yaml`) writes the `dailydoseoftech-tls`
@@ -168,7 +168,9 @@ manifests/
       (`alb.networking.azure.io/alb-id`). If `snet-alb` is not `10.0.2.0/24`, also update the
       `ipBlock` in `manifests/news-digest/networkpolicy.yaml` (`terraform output alb_subnet_cidr`).
 - [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict). Point both records at the
-      AGC FQDN as **CNAME → `terraform output alb_frontend_fqdn`** (CNAME-flattening handles the
-      apex), then keep orange-cloud proxy enabled on both.
+      **Gateway's runtime FQDN** as a CNAME (CNAME-flattening handles the apex), then keep
+      orange-cloud proxy enabled on both. Get the FQDN from the Gateway status (the ALB
+      controller manages the frontend, so it is NOT a terraform output):
+      `kubectl get gateway ddot-gateway -n news-digest -o jsonpath='{.status.addresses[0].value}'`
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
