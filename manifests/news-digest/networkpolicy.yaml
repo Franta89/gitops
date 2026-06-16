@@ -24,7 +24,11 @@ spec:
         - protocol: TCP
           port: 5432
 ---
-# Allow ingress-nginx to reach the frontend on port 80.
+# Allow the Application Gateway for Containers data path to reach the frontend on
+# port 80. AGC delivers traffic from its delegated subnet (snet-alb), not from an
+# in-cluster controller pod, so we match the subnet CIDR with an ipBlock instead
+# of a namespaceSelector. Keep this CIDR in sync with the snet-alb address_prefix
+# in infra-terraform (terraform output alb_subnet_cidr).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -38,15 +42,14 @@ spec:
     - Ingress
   ingress:
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+        - ipBlock:
+            cidr: 10.0.2.0/24
       ports:
         - protocol: TCP
           port: 80
 ---
-# Allow ingress-nginx to reach the API (via frontend nginx proxy) and
-# allow the frontend pods to reach the API directly within the namespace.
+# Allow the frontend pods to reach the API within the namespace. Public traffic
+# reaches the API only via the frontend nginx proxy, so no AGC ipBlock is needed here.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

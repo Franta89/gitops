@@ -1,0 +1,46 @@
+# Routes for the Daily Dose of Tech app, attached to ddot-gateway.
+#
+# news-digest-route: serves the app on HTTPS. All paths go to the frontend nginx,
+# which proxies /api to the API pod (same as the old Ingress).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: news-digest-route
+  namespace: news-digest
+spec:
+  parentRefs:
+    - name: ddot-gateway
+      sectionName: https
+  hostnames:
+    - dailydoseoftech.org
+    - www.dailydoseoftech.org
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: frontend-svc
+          port: 80
+---
+# news-digest-redirect: 301 all plain HTTP to HTTPS (replaces the nginx
+# force-ssl-redirect annotation). Covers every path on both hosts, so it also
+# redirects Grafana's HTTP traffic.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: news-digest-redirect
+  namespace: news-digest
+spec:
+  parentRefs:
+    - name: ddot-gateway
+      sectionName: http
+  hostnames:
+    - dailydoseoftech.org
+    - www.dailydoseoftech.org
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

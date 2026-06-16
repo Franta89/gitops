@@ -1,0 +1,20 @@
+# TLS certificate for the public hostnames, issued by Let's Encrypt via the
+# DNS-01 (Cloudflare) ClusterIssuer. cert-manager writes the result into the
+# `dailydoseoftech-tls` Secret, which the Gateway's HTTPS listener references.
+#
+# We request the cert explicitly (rather than via the Gateway annotation /
+# gateway-shim) so no experimental cert-manager feature gate is required.
+# The same cert/secret also serves Grafana, which shares the dailydoseoftech.org host.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dailydoseoftech-tls
+  namespace: news-digest
+spec:
+  secretName: dailydoseoftech-tls
+  dnsNames:
+    - dailydoseoftech.org
+    - www.dailydoseoftech.org
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer

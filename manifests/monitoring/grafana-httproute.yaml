@@ -1,0 +1,32 @@
+# Grafana route under Gateway API (replaces the kube-prometheus-stack nginx
+# Ingress, which is disabled in apps/monitoring.yaml).
+#
+# Attaches cross-namespace to ddot-gateway in the news-digest namespace — allowed
+# because that Gateway's listeners set allowedRoutes.namespaces.from: All. The
+# HTTPS listener's dailydoseoftech-tls cert already covers this host, so Grafana
+# keeps working over TLS at https://dailydoseoftech.org/grafana.
+#
+# Grafana is configured with serve_from_sub_path + root_url=/grafana
+# (apps/monitoring.yaml), so the /grafana prefix is preserved (no rewrite needed).
+# A /grafana PathPrefix is longer/more specific than the app's "/" route, so
+# Gateway API matching precedence sends /grafana here.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-route
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: ddot-gateway
+      namespace: news-digest
+      sectionName: https
+  hostnames:
+    - dailydoseoftech.org
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /grafana
+      backendRefs:
+        - name: monitoring-grafana
+          port: 80

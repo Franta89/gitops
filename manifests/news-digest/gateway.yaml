@@ -1,0 +1,35 @@
+# Gateway API replacement for the old NGINX Ingress. Programs the Azure
+# Application Gateway for Containers (AGC) referenced by the alb-id annotation.
+#
+# The AGC resource is created in infra-terraform (module app-gateway-containers).
+# Fill the annotation from:  terraform output alb_id
+#
+# allowedRoutes.namespaces.from: All lets routes in other namespaces (e.g. the
+# Grafana HTTPRoute in `monitoring`) attach to these listeners.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: ddot-gateway
+  namespace: news-digest
+  annotations:
+    alb.networking.azure.io/alb-id: <AGC_RESOURCE_ID>
+spec:
+  gatewayClassName: azure-alb-external
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: dailydoseoftech-tls
+      allowedRoutes:
+        namespaces:
+          from: All
