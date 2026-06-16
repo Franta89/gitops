@@ -172,5 +172,14 @@ manifests/
       orange-cloud proxy enabled on both. Get the FQDN from the Gateway status (the ALB
       controller manages the frontend, so it is NOT a terraform output):
       `kubectl get gateway ddot-gateway -n news-digest -o jsonpath='{.status.addresses[0].value}'`
+- [ ] After `terraform apply` (security pass): paste `secrets_sync_client_id` into the
+      **monitoring + cert-manager** `secret-provider-class.yaml`, `service-account.yaml`,
+      and `secret-sa.yaml` (replaces the old shared clientID — those pods now use a
+      secrets-only identity). The news-digest SA/SPC keep `managed_identity_client_id`.
+- [ ] After `terraform apply` (security pass): add `manifests/news-digest/waf.yaml`
+      (`WebApplicationFirewallPolicy` targeting `ddot-gateway`) with
+      `webApplicationFirewall.id = terraform output waf_policy_id`. Template + rationale
+      in `infra-terraform/whatnext.md` (kept out of the repo until the policy exists so
+      Argo never pushes an invalid id at the live Gateway).
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
