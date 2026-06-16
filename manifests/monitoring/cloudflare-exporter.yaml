@@ -40,7 +40,6 @@ spec:
             - "--free_tier"
             - "--cf_zones=0864c44c476bdd830661f464d90a2ab8"
             - "--scrape_delay=60"
-            - "--log_level=debug"
           envFrom:
             - secretRef:
                 name: cloudflare-exporter-token   # provides CF_API_TOKEN
