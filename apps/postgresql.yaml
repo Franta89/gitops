@@ -16,6 +16,11 @@ spec:
     helm:
       releaseName: postgresql
       values: |
+        # Bitnami moved free Docker Hub images to the bitnamilegacy/ repo (Aug 2025
+        # catalog change); the chart's default bitnami/postgresql:<tag> is no longer
+        # pullable (ImagePullBackOff). Redirect to the legacy archive, same tag.
+        image:
+          repository: bitnamilegacy/postgresql
         auth:
           username: puzzle
           password: puzzle-dev-changeme
