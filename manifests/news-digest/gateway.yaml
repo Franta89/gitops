@@ -12,7 +12,7 @@ metadata:
   name: ddot-gateway
   namespace: news-digest
   annotations:
-    alb.networking.azure.io/alb-id: <AGC_RESOURCE_ID>
+    alb.networking.azure.io/alb-id: /subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.ServiceNetworking/trafficControllers/alb-ddot-dev-swc-001
 spec:
   gatewayClassName: azure-alb-external
   listeners:

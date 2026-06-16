@@ -27,7 +27,7 @@ spec:
         albController:
           namespace: azure-alb-system
           podIdentity:
-            clientID: <ALB_CONTROLLER_CLIENT_ID>
+            clientID: ec78522c-f15f-46eb-80db-281835f1f94a
   destination:
     server: https://kubernetes.default.svc
     namespace: azure-alb-system
