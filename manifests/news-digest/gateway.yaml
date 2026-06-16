@@ -13,6 +13,12 @@ metadata:
   namespace: news-digest
   annotations:
     alb.networking.azure.io/alb-id: /subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.ServiceNetworking/trafficControllers/alb-ddot-dev-swc-001
+    # Pin to the Terraform-created frontend (module app-gateway-containers,
+    # azurerm_application_load_balancer_frontend "agc_fe" => name fe-<ddot_prefix>).
+    # Without this the ALB controller creates its own managed frontend with a
+    # DIFFERENT FQDN, so the Cloudflare CNAME (which targets terraform output
+    # alb_frontend_fqdn) points at a frontend with no listener -> Cloudflare 525.
+    alb.networking.azure.io/alb-frontend: fe-ddot-dev-swc-001
 spec:
   gatewayClassName: azure-alb-external
   listeners:
