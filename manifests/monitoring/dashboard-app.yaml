@@ -49,7 +49,7 @@ data:
           "type": "stat",
           "gridPos": {
             "h": 4,
-            "w": 6,
+            "w": 4,
             "x": 0,
             "y": 1
           },
@@ -87,8 +87,8 @@ data:
           "type": "stat",
           "gridPos": {
             "h": 4,
-            "w": 6,
-            "x": 6,
+            "w": 4,
+            "x": 8,
             "y": 1
           },
           "datasource": {
@@ -125,7 +125,7 @@ data:
           "type": "stat",
           "gridPos": {
             "h": 4,
-            "w": 6,
+            "w": 4,
             "x": 12,
             "y": 1
           },
@@ -163,8 +163,8 @@ data:
           "type": "stat",
           "gridPos": {
             "h": 4,
-            "w": 6,
-            "x": 18,
+            "w": 4,
+            "x": 16,
             "y": 1
           },
           "datasource": {
@@ -209,7 +209,7 @@ data:
           "title": "Requests \u00e2\u20ac\u201d today (running total)",
           "type": "timeseries",
           "gridPos": {
-            "h": 7,
+            "h": 6,
             "w": 12,
             "x": 0,
             "y": 5
@@ -246,7 +246,7 @@ data:
           "title": "Unique Visitors \u00e2\u20ac\u201d yesterday vs today",
           "type": "bargauge",
           "gridPos": {
-            "h": 7,
+            "h": 6,
             "w": 12,
             "x": 12,
             "y": 5
@@ -286,10 +286,10 @@ data:
           "title": "Page Views (yesterday)",
           "type": "stat",
           "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 12
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 1
           },
           "datasource": {
             "type": "prometheus",
@@ -324,10 +324,10 @@ data:
           "title": "TLS Cert \u00e2\u20ac\u201d time to expiry",
           "type": "stat",
           "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 12
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 1
           },
           "datasource": {
             "type": "prometheus",
@@ -375,10 +375,10 @@ data:
           "title": "Unique Visitors per Day (last 30d)",
           "type": "barchart",
           "gridPos": {
-            "h": 8,
-            "w": 16,
+            "h": 7,
+            "w": 12,
             "x": 0,
-            "y": 20
+            "y": 11
           },
           "datasource": {
             "type": "prometheus",
@@ -420,13 +420,13 @@ data:
         },
         {
           "id": 40,
-          "title": "Threats Blocked by Type (yesterday)",
+          "title": "Threats Blocked by Type (last 30d)",
           "type": "table",
           "gridPos": {
-            "h": 8,
-            "w": 8,
-            "x": 16,
-            "y": 20
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 18
           },
           "datasource": {
             "type": "prometheus",
@@ -489,10 +489,10 @@ data:
           "title": "Threats Blocked per Day (last 30d)",
           "type": "barchart",
           "gridPos": {
-            "h": 8,
-            "w": 16,
-            "x": 0,
-            "y": 28
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 11
           },
           "datasource": {
             "type": "prometheus",

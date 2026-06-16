@@ -79,22 +79,22 @@ data:
     for date, g in sorted(by_date.items()):
         lines.append('ddot_cloudflare_threats_daily{date="%s"} %s' % (date, g["sum"]["threats"]))
 
-    # --- threat breakdown by type for yesterday (detail behind the total) ---
-    lines.append("# HELP ddot_cloudflare_threats_by_type Cloudflare threats blocked by type (yesterday)")
+    # --- threat breakdown by type, aggregated over the last ~30 days ---
+    lines.append("# HELP ddot_cloudflare_threats_by_type Cloudflare threats blocked by type (last 30d)")
     lines.append("# TYPE ddot_cloudflare_threats_by_type gauge")
-    yg = by_date.get(str(yesterday))
-    threat_map = yg["sum"].get("threatPathingMap", []) if yg else []
-    for entry in threat_map:
-        lines.append('ddot_cloudflare_threats_by_type{type="%s"} %s'
-                     % (esc(entry["threatPathingName"]), entry["requests"]))
+    agg = {}
+    for g in by_date.values():
+        for entry in g["sum"].get("threatPathingMap", []):
+            agg[entry["threatPathingName"]] = agg.get(entry["threatPathingName"], 0) + entry["requests"]
+    for tname, val in agg.items():
+        lines.append('ddot_cloudflare_threats_by_type{type="%s"} %s' % (esc(tname), val))
 
     payload = ("\n".join(lines) + "\n").encode()
 
     # PUT replaces the whole job group each run, so stale series don't accumulate.
     put = urllib.request.Request(pgw + "/metrics/job/cloudflare_analytics", data=payload, method="PUT")
     urllib.request.urlopen(put, timeout=30)
-    print("pushed cloudflare metrics; days:", len(by_date),
-          "yesterday threat types:", len(threat_map))
+    print("pushed cloudflare metrics; days:", len(by_date), "threat types(30d):", len(agg))
 ---
 apiVersion: batch/v1
 kind: CronJob
