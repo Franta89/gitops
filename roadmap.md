@@ -18,7 +18,10 @@ offering, but **keep cost low** (the project has a monthly budget alert).
   If the user doesn't pick, it plays in a **default voice**.
 - Both voices must **sound natural/pleasant**.
 - While reading: a **progress bar**; can be **paused / resumed / stopped** anytime.
-- Voice choice should also apply to the **CZ** toggle (the site has EN + Czech text).
+- The Listen button **follows the page language toggle**: when the page is in
+  **Czech** it reads with **Czech voices**; when in **English**, **English voices**.
+  The male/female choice persists across both languages (it picks the same-gender
+  voice in the active language).
 
 ---
 
@@ -32,12 +35,21 @@ includes Speech, and it has a custom subdomain) — **no new Azure resource need
 **`Cognitive Services Speech User`** to the news-digest managed identity on the AI
 Services account (Terraform: `infra-terraform/modules/azure-ai`). No keys in the app.
 
-**Voices (natural, multilingual so EN + CZ work with one voice each):**
-- Female (default): `en-US-AvaMultilingualNeural`
-- Male: `en-US-AndrewMultilingualNeural`
-- These multilingual voices speak Czech too, so the CZ toggle needs no extra voices.
-  Alternative if Czech quality isn't good enough: dedicated `cs-CZ-VlastaNeural`
-  (female) / `cs-CZ-AntoninNeural` (male) selected by language.
+**Voices — native per language, chosen by (page language × gender):** the active
+page language (EN/CZ toggle) selects the language; the popup selects the gender. So
+the voice is a 2×2 matrix:
+
+| | English page | Czech page |
+| --- | --- | --- |
+| **Female** (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` |
+| **Male** | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` |
+
+Using native `cs-CZ-*` voices for Czech gives the most natural Czech pronunciation
+(the user explicitly wants Czech voices on the Czech page). The frontend passes the
+current `lang` (from the toggle) + the persisted gender; the API maps them to the
+voice above. (If you'd rather have one voice per gender for both languages, the
+`en-US-*MultilingualNeural` voices can also speak Czech — a fallback, not the default.)
+
 - **HD variants** (e.g. Ava HD) are available for higher fidelity at higher cost —
   see cost section; default to **Standard Neural** for cost.
 
@@ -131,7 +143,9 @@ $22 / 1M chars**. Sources at the bottom.
 ## 7. Open decisions (confirm at implementation)
 
 - Standard Neural vs HD (cost vs fidelity). Default: Standard.
-- One multilingual voice per gender (EN+CZ) vs dedicated cs-CZ voices.
+- Voice mapping: **resolved** — native per-language voices (`en-US-*` / `cs-CZ-*`)
+  selected by the page toggle × gender (see the matrix). Multilingual single-voice
+  is only a fallback.
 - Cache store: Azure Blob (recommended) vs Azure Files PVC.
 - Lazy synth vs pre-generate at digest time.
 - Default voice gender (proposed: female / Ava).
