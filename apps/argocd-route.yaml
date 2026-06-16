@@ -1,0 +1,26 @@
+# Exposes Argo CD via Gateway API (HTTPRoute + AGC HealthCheckPolicy in the argocd
+# namespace). Wave 6 — after the shared Gateway (news-digest, wave 5) exists.
+# Argo CD itself is installed by the infra-terraform argocd module, not here; this
+# app only adds the routing objects.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-route
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Franta89/gitops.git
+    targetRevision: main
+    path: manifests/argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

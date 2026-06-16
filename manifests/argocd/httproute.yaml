@@ -1,0 +1,29 @@
+# Exposes the Argo CD UI via Gateway API at https://dailydoseoftech.org/argocd
+# (replaces the retired nginx Ingress that the argocd Terraform module used to create).
+#
+# Attaches cross-namespace to ddot-gateway in news-digest (its listeners allow
+# routes from All namespaces). Argo CD runs with --insecure + server.rootpath=/argocd
+# (set in the argocd Terraform module), so TLS terminates at the Gateway and the
+# /argocd prefix is preserved (no URLRewrite). Path /argocd is more specific than the
+# app's "/" route, so Gateway API precedence sends it here. The dailydoseoftech-tls
+# cert already covers this host, and the existing HTTP->HTTPS redirect covers /argocd.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-route
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: ddot-gateway
+      namespace: news-digest
+      sectionName: https
+  hostnames:
+    - dailydoseoftech.org
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /argocd
+      backendRefs:
+        - name: argocd-server
+          port: 80
