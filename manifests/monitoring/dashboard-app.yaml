@@ -68,7 +68,7 @@ data:
               "unit": "short",
               "color": {
                 "mode": "fixed",
-                "fixedColor": "green"
+                "fixedColor": "purple"
               }
             }
           },
@@ -106,7 +106,7 @@ data:
               "unit": "short",
               "color": {
                 "mode": "fixed",
-                "fixedColor": "blue"
+                "fixedColor": "yellow"
               }
             }
           },
@@ -144,7 +144,7 @@ data:
               "unit": "bytes",
               "color": {
                 "mode": "fixed",
-                "fixedColor": "purple"
+                "fixedColor": "orange"
               }
             }
           },
@@ -231,7 +231,7 @@ data:
               "unit": "short",
               "color": {
                 "mode": "fixed",
-                "fixedColor": "green"
+                "fixedColor": "yellow"
               },
               "custom": {
                 "fillOpacity": 80,
