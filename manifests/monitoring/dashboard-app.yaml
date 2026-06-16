@@ -230,7 +230,7 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-GrYlRd"
+                "mode": "continuous-greens"
               },
               "custom": {
                 "fillOpacity": 80,
@@ -278,7 +278,7 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-BlYlRd"
+                "mode": "continuous-blues"
               },
               "custom": {
                 "fillOpacity": 80,
@@ -529,7 +529,7 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-YlRd"
+                "mode": "continuous-reds"
               },
               "custom": {
                 "fillOpacity": 80,
