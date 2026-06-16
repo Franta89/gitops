@@ -14,8 +14,9 @@ offering, but **keep cost low** (the project has a monthly budget alert).
 - A **Listen** button on **each category card** (Cloud Computing, AI Development,
   IT Security, Financial Markets, World News) → reads *that* category's summary.
 - A **Listen** button at the **top of the page** → reads **all** categories.
-- Clicking Listen opens a **popup with two voice options** (one male, one female).
-  If the user doesn't pick, it plays in a **default voice**.
+- Clicking Listen opens a **popup with two voice options**, labelled **Aadita**
+  (female) and **Mark** (male). If the user doesn't pick, it plays in the **default
+  voice (Aadita)**.
 - Both voices must **sound natural/pleasant**.
 - While reading: a **progress bar**; can be **paused / resumed / stopped** anytime.
 - The Listen button **follows the page language toggle**: when the page is in
@@ -39,10 +40,13 @@ Services account (Terraform: `infra-terraform/modules/azure-ai`). No keys in the
 page language (EN/CZ toggle) selects the language; the popup selects the gender. So
 the voice is a 2×2 matrix:
 
-| | English page | Czech page |
+| Popup option | English page | Czech page |
 | --- | --- | --- |
-| **Female** (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` |
-| **Male** | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` |
+| **Aadita** — female (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` |
+| **Mark** — male | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` |
+
+The popup shows the friendly names **Aadita** and **Mark**; each maps to the
+gender-appropriate native voice for the active page language (above).
 
 Using native `cs-CZ-*` voices for Czech gives the most natural Czech pronunciation
 (the user explicitly wants Czech voices on the Czech page). The frontend passes the
