@@ -109,7 +109,7 @@ data:
         <span id="footerText"></span>
       </footer>
 
-      <script src="/app.js?v=6"></script>
+      <script src="/app.js?v=7"></script>
     </body>
     </html>
 
@@ -405,7 +405,7 @@ data:
       "  |  (sync waves 0-5, app-of-apps pattern)                             |",
       "  |                                                                     |",
       "  |  +----------------------+   Strimzi Operator / Kafka (KRaft)       |",
-      "  |  |  Gateway API (AGC)   |                                           |",
+      "  |  |  App Gateway (AGC)   |                                           |",
       "  |  +----------+----------+   cert-manager . Prometheus . Grafana     |",
       "  |             |                                                       |",
       "  |   +---------+----------+   +-------------------------+             |",
@@ -465,7 +465,8 @@ data:
           "Infrastructure: AKS (Free tier), Azure Sweden Central",
           "News sources: authoritative RSS/Atom feeds (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, and more), 48-72h window",
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- selects, summarises, and translates (EN/CS) the top stories per area",
-          "GitOps: Argo CD, Strimzi/Kafka, cert-manager, Gateway API (Azure App Gateway for Containers)",
+          "Ingress: Azure Application Gateway for Containers (Gateway API)",
+          "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
           "Secrets: Azure Key Vault + CSI driver (keyless via Workload Identity)",
           "Purpose: dev/test sandbox -- Kubernetes and Azure AI services integration"
         ],
@@ -499,7 +500,8 @@ data:
           "Infrastruktura: AKS (Free tier), Azure Svedsko - stred",
           "Zdroje zprav: duveryhodne RSS/Atom kanaly (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera a dalsi), okno 48-72h",
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- vybira, sumarizuje a preklada (EN/CS) hlavni zpravy v kazde oblasti",
-          "GitOps: Argo CD, Strimzi/Kafka, cert-manager, Gateway API (Azure App Gateway for Containers)",
+          "Ingress: Azure Application Gateway for Containers (Gateway API)",
+          "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
           "Tajne klice: Azure Key Vault + CSI driver (keyless pres Workload Identity)",
           "Ucel: vyvojovy sandbox -- integrace Kubernetes a Azure AI sluzeb"
         ],
