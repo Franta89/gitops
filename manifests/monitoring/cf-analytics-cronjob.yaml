@@ -1,0 +1,121 @@
+# Cloudflare analytics → Pushgateway. Replaces the lablabs exporter (which
+# authenticated but emitted no metrics in 0.2.3). Runs the same GraphQL query that
+# was verified by hand and pushes daily uniques/requests/bandwidth/threats for
+# yesterday (complete day) and today (running) to the Pushgateway, where Prometheus
+# scrapes them. Free Cloudflare plan analytics are daily granularity.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cf-analytics-script
+  namespace: monitoring
+data:
+  cf_push.py: |
+    import json, os, sys, urllib.request, datetime
+
+    token = os.environ["CF_API_TOKEN"]
+    zone = os.environ["CF_ZONE_ID"]
+    pgw = os.environ.get("PUSHGATEWAY", "http://pushgateway:9091").rstrip("/")
+
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+
+    # Inline query (matches the manually-verified one). zone is a fixed zone id.
+    query = (
+        '{viewer{zones(filter:{zoneTag:"%s"}){'
+        'httpRequests1dGroups(limit:10,filter:{date_geq:"%s"}){'
+        'dimensions{date} uniq{uniques} '
+        'sum{requests pageViews bytes threats cachedRequests}}}}}'
+    ) % (zone, yesterday)
+
+    req = urllib.request.Request(
+        "https://api.cloudflare.com/client/v4/graphql",
+        data=json.dumps({"query": query}).encode(),
+        headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+    )
+    resp = json.load(urllib.request.urlopen(req, timeout=30))
+    if resp.get("errors"):
+        print("cloudflare graphql errors:", resp["errors"], file=sys.stderr)
+        sys.exit(1)
+    groups = resp["data"]["viewer"]["zones"][0]["httpRequests1dGroups"]
+    by_date = {g["dimensions"]["date"]: g for g in groups}
+    periods = {"yesterday": str(yesterday), "today": str(today)}
+
+    fields = {
+        "ddot_cloudflare_uniques": ("Cloudflare unique visitors", lambda g: g["uniq"]["uniques"]),
+        "ddot_cloudflare_requests": ("Cloudflare total requests", lambda g: g["sum"]["requests"]),
+        "ddot_cloudflare_pageviews": ("Cloudflare page views", lambda g: g["sum"]["pageViews"]),
+        "ddot_cloudflare_bytes": ("Cloudflare bandwidth bytes", lambda g: g["sum"]["bytes"]),
+        "ddot_cloudflare_threats": ("Cloudflare threats", lambda g: g["sum"]["threats"]),
+        "ddot_cloudflare_cached_requests": ("Cloudflare cached requests", lambda g: g["sum"]["cachedRequests"]),
+    }
+    lines = []
+    for name, (help_, fn) in fields.items():
+        lines.append("# HELP %s %s" % (name, help_))
+        lines.append("# TYPE %s gauge" % name)
+        for period, date in periods.items():
+            g = by_date.get(date)
+            lines.append('%s{period="%s"} %s' % (name, period, fn(g) if g else 0))
+    payload = ("\n".join(lines) + "\n").encode()
+
+    # PUT replaces the whole job group each run, so stale series don't accumulate.
+    put = urllib.request.Request(pgw + "/metrics/job/cloudflare_analytics", data=payload, method="PUT")
+    urllib.request.urlopen(put, timeout=30)
+    print("pushed cloudflare metrics for days:", sorted(by_date))
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cf-analytics
+  namespace: monitoring
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: cf-push
+              image: python:3.12-slim
+              command: ["python", "/scripts/cf_push.py"]
+              env:
+                - name: CF_ZONE_ID
+                  value: "0864c44c476bdd830661f464d90a2ab8"
+                - name: PUSHGATEWAY
+                  value: "http://pushgateway:9091"
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+              envFrom:
+                - secretRef:
+                    name: cloudflare-exporter-token   # provides CF_API_TOKEN
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: cf-analytics-script

@@ -346,73 +346,73 @@ data:
         },
         {
           "id": 31,
-          "title": "Unique Visitors (24h)",
+          "title": "Unique Visitors (yesterday)",
           "type": "stat",
           "gridPos": {"h": 4, "w": 6, "x": 0, "y": 24},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"expr": "round(sum(increase(cloudflare_zone_uniques_total[24h])))", "refId": "A"}],
+          "targets": [{"expr": "ddot_cloudflare_uniques{period=\"yesterday\"}", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "fixed", "fixedColor": "green"}}},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value"}
         },
         {
           "id": 32,
-          "title": "Total Requests (24h)",
+          "title": "Total Requests (yesterday)",
           "type": "stat",
           "gridPos": {"h": 4, "w": 6, "x": 6, "y": 24},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"expr": "round(sum(increase(cloudflare_zone_requests_total[24h])))", "refId": "A"}],
+          "targets": [{"expr": "ddot_cloudflare_requests{period=\"yesterday\"}", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "fixed", "fixedColor": "blue"}}},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value"}
         },
         {
           "id": 33,
-          "title": "Bandwidth (24h)",
+          "title": "Bandwidth (yesterday)",
           "type": "stat",
           "gridPos": {"h": 4, "w": 6, "x": 12, "y": 24},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"expr": "sum(increase(cloudflare_zone_bandwidth_total[24h]))", "refId": "A"}],
+          "targets": [{"expr": "ddot_cloudflare_bytes{period=\"yesterday\"}", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "bytes", "color": {"mode": "fixed", "fixedColor": "purple"}}},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value"}
         },
         {
           "id": 34,
-          "title": "Threats Blocked (24h)",
+          "title": "Threats Blocked (yesterday)",
           "type": "stat",
           "gridPos": {"h": 4, "w": 6, "x": 18, "y": 24},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"expr": "round(sum(increase(cloudflare_zone_threats_total[24h])))", "refId": "A"}],
+          "targets": [{"expr": "ddot_cloudflare_threats{period=\"yesterday\"}", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"}
         },
         {
           "id": 35,
-          "title": "Requests / min",
+          "title": "Requests — today (running total)",
           "type": "timeseries",
           "gridPos": {"h": 7, "w": 12, "x": 0, "y": 28},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"expr": "sum(rate(cloudflare_zone_requests_total[10m])) * 60", "legendFormat": "requests/min", "refId": "A"}],
+          "targets": [{"expr": "ddot_cloudflare_requests{period=\"today\"}", "legendFormat": "requests today", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "short", "custom": {"fillOpacity": 20, "showPoints": "never"}}},
           "options": {"tooltip": {"mode": "multi", "sort": "none"}}
         },
         {
           "id": 36,
-          "title": "Requests by Status (24h)",
-          "type": "piechart",
+          "title": "Unique Visitors — yesterday vs today",
+          "type": "bargauge",
           "gridPos": {"h": 7, "w": 12, "x": 12, "y": 28},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"expr": "sum by (status) (increase(cloudflare_zone_requests_status[24h]))", "legendFormat": "{{status}}", "refId": "A", "instant": true}],
-          "fieldConfig": {"defaults": {"unit": "short"}},
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "legend": {"displayMode": "list", "placement": "right"}}
+          "targets": [{"expr": "ddot_cloudflare_uniques", "legendFormat": "{{period}}", "refId": "A", "instant": true}],
+          "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "continuous-GrYlRd"}}},
+          "options": {"orientation": "horizontal", "displayMode": "gradient", "reduceOptions": {"calcs": ["lastNotNull"]}}
         },
         {
           "id": 37,
-          "title": "Top Countries by Requests (24h)",
-          "type": "bargauge",
+          "title": "Page Views (yesterday)",
+          "type": "stat",
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 35},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"expr": "topk(10, sum by (country) (increase(cloudflare_zone_requests_country[24h])))", "legendFormat": "{{country}}", "refId": "A", "instant": true}],
-          "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "continuous-GrYlRd"}}},
-          "options": {"orientation": "horizontal", "displayMode": "gradient", "reduceOptions": {"calcs": ["lastNotNull"]}}
+          "targets": [{"expr": "ddot_cloudflare_pageviews{period=\"yesterday\"}", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "fixed", "fixedColor": "blue"}}},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value"}
         },
         {
           "id": 38,
