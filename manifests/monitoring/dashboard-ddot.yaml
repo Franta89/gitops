@@ -423,6 +423,30 @@ data:
           "targets": [{"expr": "min(certmanager_certificate_expiration_timestamp_seconds{name=\"dailydoseoftech-tls\"}) - time()", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1209600}, {"color": "green", "value": 2592000}]}}},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"}
+        },
+        {
+          "id": 39,
+          "title": "Unique Visitors per Day (last 30d)",
+          "type": "barchart",
+          "gridPos": {"h": 8, "w": 16, "x": 0, "y": 43},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"expr": "ddot_cloudflare_uniques_daily", "legendFormat": "{{date}}", "refId": "A", "instant": true}],
+          "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "continuous-BlPu"}, "custom": {"fillOpacity": 80, "lineWidth": 1}}},
+          "options": {"orientation": "auto", "xTickLabelRotation": -45, "showValue": "auto", "legend": {"showLegend": false}, "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+          "id": 40,
+          "title": "Threats Blocked by Type (yesterday)",
+          "type": "table",
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 43},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"expr": "ddot_cloudflare_threats_by_type", "legendFormat": "{{type}}", "refId": "A", "instant": true}],
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "options": {"showHeader": true, "sortBy": [{"displayName": "Blocked", "desc": true}]},
+          "transformations": [
+            {"id": "labelsToFields", "options": {"mode": "columns"}},
+            {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "job": true, "instance": true, "namespace": true, "pod": true, "service": true, "container": true, "endpoint": true}, "renameByName": {"type": "Threat type", "Value": "Blocked"}}}
+          ]
         }
       ],
       "refresh": "30s",

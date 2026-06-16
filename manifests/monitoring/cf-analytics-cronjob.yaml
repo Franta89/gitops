@@ -18,14 +18,18 @@ data:
 
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
+    since = today - datetime.timedelta(days=30)
 
-    # Inline query (matches the manually-verified one). zone is a fixed zone id.
+    # One query covers the last ~30 days. Provides the period scalars (yesterday/
+    # today), the per-day series (for the monthly bar chart), and the threat
+    # breakdown by type (threatPathingMap). zone is a fixed zone id.
     query = (
         '{viewer{zones(filter:{zoneTag:"%s"}){'
-        'httpRequests1dGroups(limit:10,filter:{date_geq:"%s"}){'
+        'httpRequests1dGroups(limit:31,filter:{date_geq:"%s"}){'
         'dimensions{date} uniq{uniques} '
-        'sum{requests pageViews bytes threats cachedRequests}}}}}'
-    ) % (zone, yesterday)
+        'sum{requests pageViews bytes threats cachedRequests '
+        'threatPathingMap{requests threatPathingName}}}}}}'
+    ) % (zone, since)
 
     req = urllib.request.Request(
         "https://api.cloudflare.com/client/v4/graphql",
@@ -38,29 +42,55 @@ data:
         sys.exit(1)
     groups = resp["data"]["viewer"]["zones"][0]["httpRequests1dGroups"]
     by_date = {g["dimensions"]["date"]: g for g in groups}
-    periods = {"yesterday": str(yesterday), "today": str(today)}
 
-    fields = {
-        "ddot_cloudflare_uniques": ("Cloudflare unique visitors", lambda g: g["uniq"]["uniques"]),
-        "ddot_cloudflare_requests": ("Cloudflare total requests", lambda g: g["sum"]["requests"]),
-        "ddot_cloudflare_pageviews": ("Cloudflare page views", lambda g: g["sum"]["pageViews"]),
-        "ddot_cloudflare_bytes": ("Cloudflare bandwidth bytes", lambda g: g["sum"]["bytes"]),
-        "ddot_cloudflare_threats": ("Cloudflare threats", lambda g: g["sum"]["threats"]),
-        "ddot_cloudflare_cached_requests": ("Cloudflare cached requests", lambda g: g["sum"]["cachedRequests"]),
-    }
+    def esc(s):
+        return s.replace("\\", "\\\\").replace('"', '\\"')
+
     lines = []
-    for name, (help_, fn) in fields.items():
-        lines.append("# HELP %s %s" % (name, help_))
+
+    # --- period scalars: yesterday (complete) + today (running) ---
+    periods = {"yesterday": str(yesterday), "today": str(today)}
+    scalars = {
+        "ddot_cloudflare_uniques": ("unique visitors", lambda g: g["uniq"]["uniques"]),
+        "ddot_cloudflare_requests": ("total requests", lambda g: g["sum"]["requests"]),
+        "ddot_cloudflare_pageviews": ("page views", lambda g: g["sum"]["pageViews"]),
+        "ddot_cloudflare_bytes": ("bandwidth bytes", lambda g: g["sum"]["bytes"]),
+        "ddot_cloudflare_threats": ("threats", lambda g: g["sum"]["threats"]),
+        "ddot_cloudflare_cached_requests": ("cached requests", lambda g: g["sum"]["cachedRequests"]),
+    }
+    for name, (help_, fn) in scalars.items():
+        lines.append("# HELP %s Cloudflare %s" % (name, help_))
         lines.append("# TYPE %s gauge" % name)
         for period, date in periods.items():
             g = by_date.get(date)
             lines.append('%s{period="%s"} %s' % (name, period, fn(g) if g else 0))
+
+    # --- per-day series (last ~30 days) for the monthly bar chart ---
+    lines.append("# HELP ddot_cloudflare_uniques_daily Cloudflare unique visitors per day")
+    lines.append("# TYPE ddot_cloudflare_uniques_daily gauge")
+    for date, g in sorted(by_date.items()):
+        lines.append('ddot_cloudflare_uniques_daily{date="%s"} %s' % (date, g["uniq"]["uniques"]))
+    lines.append("# HELP ddot_cloudflare_requests_daily Cloudflare requests per day")
+    lines.append("# TYPE ddot_cloudflare_requests_daily gauge")
+    for date, g in sorted(by_date.items()):
+        lines.append('ddot_cloudflare_requests_daily{date="%s"} %s' % (date, g["sum"]["requests"]))
+
+    # --- threat breakdown by type for yesterday (detail behind the total) ---
+    lines.append("# HELP ddot_cloudflare_threats_by_type Cloudflare threats blocked by type (yesterday)")
+    lines.append("# TYPE ddot_cloudflare_threats_by_type gauge")
+    yg = by_date.get(str(yesterday))
+    threat_map = yg["sum"].get("threatPathingMap", []) if yg else []
+    for entry in threat_map:
+        lines.append('ddot_cloudflare_threats_by_type{type="%s"} %s'
+                     % (esc(entry["threatPathingName"]), entry["requests"]))
+
     payload = ("\n".join(lines) + "\n").encode()
 
     # PUT replaces the whole job group each run, so stale series don't accumulate.
     put = urllib.request.Request(pgw + "/metrics/job/cloudflare_analytics", data=payload, method="PUT")
     urllib.request.urlopen(put, timeout=30)
-    print("pushed cloudflare metrics for days:", sorted(by_date))
+    print("pushed cloudflare metrics; days:", len(by_date),
+          "yesterday threat types:", len(threat_map))
 ---
 apiVersion: batch/v1
 kind: CronJob
