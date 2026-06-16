@@ -45,7 +45,7 @@ data:
         },
         {
           "id": 31,
-          "title": "Unique Visitors (yesterday)",
+          "title": "Unique Visitors (today)",
           "type": "stat",
           "gridPos": {
             "h": 4,
@@ -59,7 +59,7 @@ data:
           },
           "targets": [
             {
-              "expr": "ddot_cloudflare_uniques{period=\"yesterday\"}",
+              "expr": "ddot_cloudflare_uniques{period=\"today\"}",
               "refId": "A"
             }
           ],
@@ -83,7 +83,7 @@ data:
         },
         {
           "id": 32,
-          "title": "Total Requests (yesterday)",
+          "title": "Total Requests (today)",
           "type": "stat",
           "gridPos": {
             "h": 4,
@@ -97,7 +97,7 @@ data:
           },
           "targets": [
             {
-              "expr": "ddot_cloudflare_requests{period=\"yesterday\"}",
+              "expr": "ddot_cloudflare_requests{period=\"today\"}",
               "refId": "A"
             }
           ],
@@ -121,7 +121,7 @@ data:
         },
         {
           "id": 33,
-          "title": "Bandwidth (yesterday)",
+          "title": "Bandwidth (today)",
           "type": "stat",
           "gridPos": {
             "h": 4,
@@ -135,7 +135,7 @@ data:
           },
           "targets": [
             {
-              "expr": "ddot_cloudflare_bytes{period=\"yesterday\"}",
+              "expr": "ddot_cloudflare_bytes{period=\"today\"}",
               "refId": "A"
             }
           ],
@@ -159,7 +159,7 @@ data:
         },
         {
           "id": 34,
-          "title": "Threats Blocked (yesterday)",
+          "title": "Threats Blocked (today)",
           "type": "stat",
           "gridPos": {
             "h": 4,
@@ -173,7 +173,7 @@ data:
           },
           "targets": [
             {
-              "expr": "ddot_cloudflare_threats{period=\"yesterday\"}",
+              "expr": "ddot_cloudflare_threats{period=\"today\"}",
               "refId": "A"
             }
           ],
@@ -206,13 +206,13 @@ data:
         },
         {
           "id": 35,
-          "title": "Requests \u00e2\u20ac\u201d today (running total)",
-          "type": "timeseries",
+          "title": "Requests per Day (last 30d)",
+          "type": "barchart",
           "gridPos": {
-            "h": 6,
+            "h": 7,
             "w": 12,
             "x": 0,
-            "y": 5
+            "y": 12
           },
           "datasource": {
             "type": "prometheus",
@@ -220,33 +220,44 @@ data:
           },
           "targets": [
             {
-              "expr": "ddot_cloudflare_requests{period=\"today\"}",
-              "legendFormat": "requests today",
-              "refId": "A"
+              "expr": "ddot_cloudflare_requests_daily",
+              "legendFormat": "{{date}}",
+              "refId": "A",
+              "instant": true
             }
           ],
           "fieldConfig": {
             "defaults": {
               "unit": "short",
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
               "custom": {
-                "fillOpacity": 20,
-                "showPoints": "never"
+                "fillOpacity": 80,
+                "lineWidth": 1
               }
             }
           },
           "options": {
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
+            "orientation": "auto",
+            "xTickLabelRotation": -45,
+            "showValue": "auto",
+            "legend": {
+              "showLegend": false
+            },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
             }
           }
         },
         {
           "id": 36,
-          "title": "Unique Visitors \u00e2\u20ac\u201d yesterday vs today",
-          "type": "bargauge",
+          "title": "Page Views per Day (last 30d)",
+          "type": "barchart",
           "gridPos": {
-            "h": 6,
+            "h": 7,
             "w": 12,
             "x": 12,
             "y": 5
@@ -257,8 +268,8 @@ data:
           },
           "targets": [
             {
-              "expr": "ddot_cloudflare_uniques",
-              "legendFormat": "{{period}}",
+              "expr": "ddot_cloudflare_pageviews_daily",
+              "legendFormat": "{{date}}",
               "refId": "A",
               "instant": true
             }
@@ -267,13 +278,21 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-GrYlRd"
+                "mode": "continuous-BlYlRd"
+              },
+              "custom": {
+                "fillOpacity": 80,
+                "lineWidth": 1
               }
             }
           },
           "options": {
-            "orientation": "horizontal",
-            "displayMode": "gradient",
+            "orientation": "auto",
+            "xTickLabelRotation": -45,
+            "showValue": "auto",
+            "legend": {
+              "showLegend": false
+            },
             "reduceOptions": {
               "calcs": [
                 "lastNotNull"
@@ -283,7 +302,7 @@ data:
         },
         {
           "id": 37,
-          "title": "Page Views (yesterday)",
+          "title": "Page Views (today)",
           "type": "stat",
           "gridPos": {
             "h": 4,
@@ -297,7 +316,7 @@ data:
           },
           "targets": [
             {
-              "expr": "ddot_cloudflare_pageviews{period=\"yesterday\"}",
+              "expr": "ddot_cloudflare_pageviews{period=\"today\"}",
               "refId": "A"
             }
           ],
@@ -378,7 +397,7 @@ data:
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 11
+            "y": 5
           },
           "datasource": {
             "type": "prometheus",
@@ -426,7 +445,7 @@ data:
             "h": 7,
             "w": 24,
             "x": 0,
-            "y": 18
+            "y": 19
           },
           "datasource": {
             "type": "prometheus",
@@ -492,7 +511,7 @@ data:
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 11
+            "y": 12
           },
           "datasource": {
             "type": "prometheus",
