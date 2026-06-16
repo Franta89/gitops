@@ -1,0 +1,25 @@
+# AGC health probe for Grafana. Without this, AGC probes the backend at "/",
+# which Grafana returns 403 for (it serves under /grafana via serve_from_sub_path),
+# so AGC marks the backend unhealthy -> clients get "no healthy upstream".
+# Grafana's /api/health returns 200, so probe that instead.
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: grafana-healthcheck
+  namespace: monitoring
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: monitoring-grafana
+  default:
+    interval: 15s
+    timeout: 5s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    http:
+      path: /api/health
+      match:
+        statusCodes:
+          - start: 200
+            end: 299
