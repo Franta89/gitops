@@ -31,22 +31,15 @@ spec:
       containers:
         - name: cloudflare-exporter
           image: ghcr.io/lablabs/cloudflare_exporter:0.2.3
-          args: ["--listen=:8080"]
-          env:
-            # FREE_TIER tailors the GraphQL queries to a free Cloudflare plan.
-            - name: FREE_TIER
-              value: "true"
-            # Pin the zone explicitly — a zone-scoped API token can't always
-            # auto-discover zones via the exporter's list call (even though direct
-            # analytics queries work). Zone ID for dailydoseoftech.org (not secret).
-            - name: CF_ZONES
-              value: "0864c44c476bdd830661f464d90a2ab8"
-            - name: SCRAPE_INTERVAL
-              value: "300"
-            # Initial delay before the first scrape (default 300s). Lower it so
-            # metrics appear quickly after deploy / token changes.
-            - name: SCRAPE_DELAY
-              value: "20"
+          # v0.2.3 is configured by FLAGS (env vars are unreliable). --scrape_delay
+          # is the interval between scrapes (default 300s). --free_tier matches the
+          # free Cloudflare plan; --cf_zones pins the zone (a zone-scoped token can't
+          # auto-discover). The API token comes from the CF_API_TOKEN env (secret).
+          args:
+            - "--listen=:8080"
+            - "--free_tier"
+            - "--cf_zones=0864c44c476bdd830661f464d90a2ab8"
+            - "--scrape_delay=60"
           envFrom:
             - secretRef:
                 name: cloudflare-exporter-token   # provides CF_API_TOKEN
