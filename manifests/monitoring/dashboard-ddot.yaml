@@ -447,6 +447,16 @@ data:
             {"id": "labelsToFields", "options": {"mode": "columns"}},
             {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "job": true, "instance": true, "namespace": true, "pod": true, "service": true, "container": true, "endpoint": true}, "renameByName": {"type": "Threat type", "Value": "Blocked"}}}
           ]
+        },
+        {
+          "id": 41,
+          "title": "Threats Blocked per Day (last 30d)",
+          "type": "barchart",
+          "gridPos": {"h": 8, "w": 16, "x": 0, "y": 51},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"expr": "ddot_cloudflare_threats_daily", "legendFormat": "{{date}}", "refId": "A", "instant": true}],
+          "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "continuous-YlRd"}, "custom": {"fillOpacity": 80, "lineWidth": 1}}},
+          "options": {"orientation": "auto", "xTickLabelRotation": -45, "showValue": "auto", "legend": {"showLegend": false}, "reduceOptions": {"calcs": ["lastNotNull"]}}
         }
       ],
       "refresh": "30s",

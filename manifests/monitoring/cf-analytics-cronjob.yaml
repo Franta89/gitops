@@ -74,6 +74,10 @@ data:
     lines.append("# TYPE ddot_cloudflare_requests_daily gauge")
     for date, g in sorted(by_date.items()):
         lines.append('ddot_cloudflare_requests_daily{date="%s"} %s' % (date, g["sum"]["requests"]))
+    lines.append("# HELP ddot_cloudflare_threats_daily Cloudflare threats blocked per day")
+    lines.append("# TYPE ddot_cloudflare_threats_daily gauge")
+    for date, g in sorted(by_date.items()):
+        lines.append('ddot_cloudflare_threats_daily{date="%s"} %s' % (date, g["sum"]["threats"]))
 
     # --- threat breakdown by type for yesterday (detail behind the total) ---
     lines.append("# HELP ddot_cloudflare_threats_by_type Cloudflare threats blocked by type (yesterday)")
