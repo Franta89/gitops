@@ -1,0 +1,796 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-app
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  app.json: |
+    {
+      "description": "Application health, TLS, and Cloudflare site traffic for dailydoseoftech.org",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "tags": [
+        "ddot",
+        "kubernetes",
+        "cloudflare"
+      ],
+      "time": {
+        "from": "now-3h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "DDoT \u2014 Application & Traffic",
+      "uid": "ddot-app",
+      "version": 1,
+      "panels": [
+        {
+          "type": "row",
+          "title": "Application Health \u00e2\u20ac\u201d news-digest",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": 20,
+          "collapsed": false
+        },
+        {
+          "id": 21,
+          "title": "Pod Restarts \u00e2\u20ac\u201d Last 24h",
+          "type": "bargauge",
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 1
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "sum by(pod)(increase(kube_pod_container_status_restarts_total{namespace=\"news-digest\"}[24h]))",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 5
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            }
+          },
+          "options": {
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "displayMode": "gradient",
+            "showUnfilled": true
+          }
+        },
+        {
+          "id": 22,
+          "title": "Container Memory \u00e2\u20ac\u201d news-digest",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 7,
+            "w": 10,
+            "x": 8,
+            "y": 1
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "sum by(pod)(container_memory_working_set_bytes{namespace=\"news-digest\", container!=\"\", container!=\"POD\"})",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes"
+            }
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            },
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "mean",
+                "max"
+              ]
+            }
+          }
+        },
+        {
+          "id": 23,
+          "title": "PostgreSQL PVC Used",
+          "type": "gauge",
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 18,
+            "y": 1
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "kubelet_volume_stats_used_bytes{namespace=\"news-digest\"} / kubelet_volume_stats_capacity_bytes{namespace=\"news-digest\"} * 100",
+              "legendFormat": "{{persistentvolumeclaim}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 70
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
+          "id": 24,
+          "title": "Container CPU \u00e2\u20ac\u201d news-digest",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "sum by(pod)(rate(container_cpu_usage_seconds_total{namespace=\"news-digest\", container!=\"\", container!=\"POD\"}[5m]))",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit"
+            }
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 25,
+          "title": "Aggregator CronJob \u00e2\u20ac\u201d Last Run",
+          "type": "table",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "kube_job_status_completion_time{namespace=\"news-digest\"} * 1000",
+              "legendFormat": "{{job_name}}",
+              "refId": "A",
+              "instant": true
+            },
+            {
+              "expr": "kube_job_status_failed{namespace=\"news-digest\"}",
+              "legendFormat": "{{job_name}} failed",
+              "refId": "B",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dateTimeFromNow"
+            },
+            "overrides": []
+          },
+          "options": {
+            "sortBy": [
+              {
+                "displayName": "Time",
+                "desc": true
+              }
+            ],
+            "footer": {
+              "show": false
+            }
+          },
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {
+                "mode": "columns"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {}
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "title": "Site Traffic \u00e2\u20ac\u201d Cloudflare",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 15
+          },
+          "id": 30,
+          "collapsed": false
+        },
+        {
+          "id": 31,
+          "title": "Unique Visitors (yesterday)",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_uniques{period=\"yesterday\"}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "green"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 32,
+          "title": "Total Requests (yesterday)",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_requests{period=\"yesterday\"}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "blue"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 33,
+          "title": "Bandwidth (yesterday)",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_bytes{period=\"yesterday\"}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "purple"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 34,
+          "title": "Threats Blocked (yesterday)",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_threats{period=\"yesterday\"}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "background"
+          }
+        },
+        {
+          "id": 35,
+          "title": "Requests \u00e2\u20ac\u201d today (running total)",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_requests{period=\"today\"}",
+              "legendFormat": "requests today",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "fillOpacity": 20,
+                "showPoints": "never"
+              }
+            }
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "id": 36,
+          "title": "Unique Visitors \u00e2\u20ac\u201d yesterday vs today",
+          "type": "bargauge",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_uniques",
+              "legendFormat": "{{period}}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {
+                "mode": "continuous-GrYlRd"
+              }
+            }
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            }
+          }
+        },
+        {
+          "id": 37,
+          "title": "Page Views (yesterday)",
+          "type": "stat",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_pageviews{period=\"yesterday\"}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "blue"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 38,
+          "title": "TLS Cert \u00e2\u20ac\u201d time to expiry",
+          "type": "stat",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "min(certmanager_certificate_expiration_timestamp_seconds{name=\"dailydoseoftech-tls\"}) - time()",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1209600
+                  },
+                  {
+                    "color": "green",
+                    "value": 2592000
+                  }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "background"
+          }
+        },
+        {
+          "id": 39,
+          "title": "Unique Visitors per Day (last 30d)",
+          "type": "barchart",
+          "gridPos": {
+            "h": 8,
+            "w": 16,
+            "x": 0,
+            "y": 35
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_uniques_daily",
+              "legendFormat": "{{date}}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {
+                "mode": "continuous-BlPu"
+              },
+              "custom": {
+                "fillOpacity": 80,
+                "lineWidth": 1
+              }
+            }
+          },
+          "options": {
+            "orientation": "auto",
+            "xTickLabelRotation": -45,
+            "showValue": "auto",
+            "legend": {
+              "showLegend": false
+            },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            }
+          }
+        },
+        {
+          "id": 40,
+          "title": "Threats Blocked by Type (yesterday)",
+          "type": "table",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 35
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_threats_by_type",
+              "legendFormat": "{{type}}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [
+              {
+                "displayName": "Blocked",
+                "desc": true
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {
+                "mode": "columns"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "job": true,
+                  "instance": true,
+                  "namespace": true,
+                  "pod": true,
+                  "service": true,
+                  "container": true,
+                  "endpoint": true
+                },
+                "renameByName": {
+                  "type": "Threat type",
+                  "Value": "Blocked"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 41,
+          "title": "Threats Blocked per Day (last 30d)",
+          "type": "barchart",
+          "gridPos": {
+            "h": 8,
+            "w": 16,
+            "x": 0,
+            "y": 43
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_cloudflare_threats_daily",
+              "legendFormat": "{{date}}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {
+                "mode": "continuous-YlRd"
+              },
+              "custom": {
+                "fillOpacity": 80,
+                "lineWidth": 1
+              }
+            }
+          },
+          "options": {
+            "orientation": "auto",
+            "xTickLabelRotation": -45,
+            "showValue": "auto",
+            "legend": {
+              "showLegend": false
+            },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            }
+          }
+        }
+      ]
+    }
