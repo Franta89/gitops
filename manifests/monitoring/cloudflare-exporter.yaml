@@ -36,6 +36,11 @@ spec:
             # FREE_TIER tailors the GraphQL queries to a free Cloudflare plan.
             - name: FREE_TIER
               value: "true"
+            # Pin the zone explicitly — a zone-scoped API token can't always
+            # auto-discover zones via the exporter's list call (even though direct
+            # analytics queries work). Zone ID for dailydoseoftech.org (not secret).
+            - name: CF_ZONES
+              value: "0864c44c476bdd830661f464d90a2ab8"
             - name: SCRAPE_INTERVAL
               value: "300"
             # Initial delay before the first scrape (default 300s). Lower it so
