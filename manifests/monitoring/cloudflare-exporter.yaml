@@ -38,6 +38,10 @@ spec:
               value: "true"
             - name: SCRAPE_INTERVAL
               value: "300"
+            # Initial delay before the first scrape (default 300s). Lower it so
+            # metrics appear quickly after deploy / token changes.
+            - name: SCRAPE_DELAY
+              value: "20"
           envFrom:
             - secretRef:
                 name: cloudflare-exporter-token   # provides CF_API_TOKEN
