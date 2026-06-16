@@ -230,7 +230,8 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-greens"
+                "mode": "fixed",
+                "fixedColor": "green"
               },
               "custom": {
                 "fillOpacity": 80,
@@ -278,7 +279,8 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-blues"
+                "mode": "fixed",
+                "fixedColor": "blue"
               },
               "custom": {
                 "fillOpacity": 80,
@@ -415,7 +417,8 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-BlPu"
+                "mode": "fixed",
+                "fixedColor": "purple"
               },
               "custom": {
                 "fillOpacity": 80,
@@ -529,7 +532,8 @@ data:
             "defaults": {
               "unit": "short",
               "color": {
-                "mode": "continuous-reds"
+                "mode": "fixed",
+                "fixedColor": "red"
               },
               "custom": {
                 "fillOpacity": 80,
