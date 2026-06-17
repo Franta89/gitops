@@ -346,7 +346,11 @@ data:
                 "recent ADVANCEMENTS in AI development worldwide — model releases, NEW TOOLS "
                 "and frameworks, agentic and developer tooling, training/inference improvements, "
                 "API/SDK features, and research breakthroughs. Emphasise what is new and what "
-                "engineers can now build or use"
+                "engineers can now build or use. This area is about CAPABILITIES, not flaws: do "
+                "NOT select security vulnerabilities, CVEs, exploits, or breaches — even when "
+                "they involve an AI product or assistant (e.g. a vulnerability in an AI coding "
+                "assistant) — those belong to IT Security. Cover security here only as a new AI "
+                "safety/guardrail capability, not an incident"
             ),
             "summarize": (
                 "Cite model names, parameter counts, benchmark scores (MMLU, HumanEval etc.), "
