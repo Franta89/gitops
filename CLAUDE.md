@@ -59,15 +59,20 @@ TLS; `HTTPRoute`s attach to it: the app at `/` (`manifests/news-digest/httproute
 and Grafana at `/grafana` (`manifests/monitoring/grafana-httproute.yaml`, cross-namespace).
 An HTTP→HTTPS 301 redirect route replaces the old nginx force-ssl-redirect annotation.
 
-The app gathers news in real time from authoritative **RSS/Atom feeds** (per-area
-lists in `aggregator.py`: BBC, The Guardian, CNBC, The Register, BleepingComputer,
-Al Jazeera, and more), uses Azure AI Services (GPT-5.4-mini) — called directly
+The app gathers news in real time from authoritative **RSS/Atom feeds** (grouped by
+**family** in `aggregator.py` — tech/finance/world/euro — plus vendor newsrooms:
+BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, AWS, OpenAI,
+and more), then **categorizes each story by content** (`route_tech()` entity routing
++ one `classify_articles()` AI call) so the area depends on what the story is about,
+not which feed carried it. It uses Azure AI Services (GPT-5.4-mini) — called directly
 against the AI Services account's **v1 API** (`*.openai.azure.com/openai/v1/`,
 stock `OpenAI` client + Entra bearer token, no dated api-version), not via the
-Foundry Hub — to pick and summarise the top 3–5 articles per area, and serves
+Foundry Hub — to pick and summarise the top ~5 articles per area, and serves
 results on a web page.
 
-Areas: Cloud Computing · AI Development · IT Security · Financial Markets · World News
+Areas: Cloud Computing · AI Development · IT Security · Financial Markets · World News ·
+Euro News (Europe-only). The four topic areas tag each item European/global and show
+a "Europe" group; World News is global-excluding-Europe, Euro News its counterpart.
 
 Schedule: aggregator CronJob at 06:30 CET daily; monthly summary on the 1st.
 
