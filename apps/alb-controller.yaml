@@ -26,6 +26,14 @@ spec:
       values: |
         albController:
           namespace: azure-alb-system
+          # Dev/test sandbox runs a single 2-vCPU node; the chart default of 2
+          # controller replicas reserves 200m CPU (each requests 100m) and, with
+          # the rest of the cluster, pushed node CPU requests to ~99%, leaving no
+          # room to schedule the daily news-digest aggregator (it sat Pending,
+          # then was preempted until the job hit its backoff limit). One replica
+          # is sufficient for a non-prod sandbox. Restore to 2 for HA in prod.
+          controller:
+            replicaCount: 1
           podIdentity:
             clientID: ec78522c-f15f-46eb-80db-281835f1f94a
   destination:
