@@ -25,69 +25,78 @@ data:
     OPENAI_DEPLOYMENT  = os.environ["OPENAI_DEPLOYMENT"]
     DATABASE_URL       = os.environ["DATABASE_URL"]
 
-    # Authoritative RSS/Atom feeds per area. Real-time, free, keyless, and
-    # compliant (public syndication). The AI selection layer downstream does the
-    # relevance filtering, so feeds are chosen for source quality, not keywords.
-    # World News and Financial Markets get wider lists since strong stories there
-    # can break anywhere globally.
-    AREA_FEEDS = {
-        "cloud_computing": [
-            "https://thenewstack.io/feed/",
-            "https://www.theregister.com/headlines.atom",
-            "https://techcrunch.com/feed/",
-            "https://www.zdnet.com/news/rss.xml",
-            "https://feeds.arstechnica.com/arstechnica/technology-lab",
-            # European/UK enterprise & cloud — feeds the "European angle" slot
-            "https://www.silicon.co.uk/feed",
-            "https://www.computerweekly.com/rss/All-Computer-Weekly-content.xml",
-        ],
-        "ai_development": [
-            "https://venturebeat.com/category/ai/feed/",
-            "https://techcrunch.com/category/artificial-intelligence/feed/",
-            "https://www.theverge.com/rss/index.xml",
-            "https://feeds.arstechnica.com/arstechnica/technology-lab",
-            "https://www.wired.com/feed/tag/ai/latest/rss",
-            # European tech / AI startups & funding — feeds the "European angle" slot
-            "https://sifted.eu/feed",
-            "https://www.eu-startups.com/feed/",
-        ],
-        "it_security": [
-            "https://www.bleepingcomputer.com/feed/",
-            "https://feeds.feedburner.com/TheHackersNews",
-            "https://krebsonsecurity.com/feed/",
-            "https://www.securityweek.com/feed/",
-            "https://www.darkreading.com/rss.xml",
-            # UK/European security coverage — feeds the "European angle" slot
-            "https://www.infosecurity-magazine.com/rss/news/",
-        ],
-        "financial_markets": [
-            "https://www.cnbc.com/id/20910258/device/rss/rss.html",
-            "https://feeds.marketwatch.com/marketwatch/topstories/",
-            "https://finance.yahoo.com/news/rssindex",
-            "https://www.investing.com/rss/news.rss",
-            "https://feeds.bbci.co.uk/news/business/rss.xml",
-            "https://www.theguardian.com/uk/business/rss",
-            "https://seekingalpha.com/market_currents.xml",
-        ],
-        # World News = global affairs EXCLUDING Europe (Europe lives in euro_news).
-        "world_news": [
-            "https://feeds.bbci.co.uk/news/world/rss.xml",
-            "https://www.aljazeera.com/xml/rss/all.xml",
-            "https://www.theguardian.com/world/rss",
-            "https://feeds.npr.org/1004/rss.xml",
-            "http://rss.cnn.com/rss/edition_world.rss",
-        ],
-        # Euro News = the same kind of content as World News, but Europe-only,
-        # with a continental (not UK-only) emphasis.
-        "euro_news": [
-            "https://www.euronews.com/rss?level=theme&name=news",
-            "https://rss.dw.com/rdf/rss-en-eu",
-            "https://www.france24.com/en/europe/rss",
-            "https://www.politico.eu/feed/",
-            "https://www.theguardian.com/world/europe-news/rss",
-            "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
-        ],
-    }
+    # Feeds are grouped by FAMILY, not by area. A story's area is decided by what
+    # it is ABOUT (entity/topic), not by which feed it came from — see route_tech()
+    # and classify_articles(). This lets every feed contribute to every relevant
+    # area (e.g. an Anthropic story lands in AI Development even if it came from a
+    # general cloud/tech feed), and stops stories being missed because they were
+    # not in one area's hand-picked list.
+    #
+    # TECH family -> classified into cloud_computing / ai_development / it_security
+    # (financial-milestone tech stories spill into financial_markets).
+    TECH_FEEDS = [
+        # General technology press
+        "https://thenewstack.io/feed/",
+        "https://www.theregister.com/headlines.atom",
+        "https://techcrunch.com/feed/",
+        "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "https://www.zdnet.com/news/rss.xml",
+        "https://feeds.arstechnica.com/arstechnica/technology-lab",
+        "https://www.theverge.com/rss/index.xml",
+        "https://www.wired.com/feed/tag/ai/latest/rss",
+        "https://venturebeat.com/category/ai/feed/",
+        "https://www.cnbc.com/id/19854910/device/rss/rss.html",  # CNBC Technology
+        # European / UK enterprise & startup tech
+        "https://www.silicon.co.uk/feed",
+        "https://www.computerweekly.com/rss/All-Computer-Weekly-content.xml",
+        "https://sifted.eu/feed",
+        "https://www.eu-startups.com/feed/",
+        # Security press
+        "https://www.bleepingcomputer.com/feed/",
+        "https://feeds.feedburner.com/TheHackersNews",
+        "https://krebsonsecurity.com/feed/",
+        "https://www.securityweek.com/feed/",
+        "https://www.darkreading.com/rss.xml",
+        "https://www.infosecurity-magazine.com/rss/news/",
+        # Vendor newsrooms — entity-clear, routed by domain (see DOMAIN_ROUTE)
+        "https://aws.amazon.com/blogs/aws/feed/",
+        "https://cloudblog.withgoogle.com/rss/",
+        "https://www.microsoft.com/releasecommunications/api/v2/azure/rss",
+        "https://openai.com/news/rss.xml",
+    ]
+
+    # FINANCE family -> financial_markets (plus financial-milestone spillover from
+    # the tech family).
+    FINANCE_FEEDS = [
+        "https://www.cnbc.com/id/20910258/device/rss/rss.html",  # CNBC Top News
+        "https://www.cnbc.com/id/10000664/device/rss/rss.html",  # CNBC Markets
+        "https://feeds.marketwatch.com/marketwatch/topstories/",
+        "https://finance.yahoo.com/news/rssindex",
+        "https://www.investing.com/rss/news.rss",
+        "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "https://www.theguardian.com/uk/business/rss",
+        "https://seekingalpha.com/market_currents.xml",
+    ]
+
+    # WORLD family -> world_news (global affairs EXCLUDING Europe).
+    WORLD_FEEDS = [
+        "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "https://www.aljazeera.com/xml/rss/all.xml",
+        "https://www.theguardian.com/world/rss",
+        "https://feeds.npr.org/1004/rss.xml",
+        "http://rss.cnn.com/rss/edition_world.rss",
+    ]
+
+    # EURO family -> euro_news (the same kind of content as World News, Europe-only,
+    # with a continental — not UK-only — emphasis).
+    EURO_FEEDS = [
+        "https://www.euronews.com/rss?level=theme&name=news",
+        "https://rss.dw.com/rdf/rss-en-eu",
+        "https://www.france24.com/en/europe/rss",
+        "https://www.politico.eu/feed/",
+        "https://www.theguardian.com/world/europe-news/rss",
+        "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
+    ]
 
     AREA_LABELS = {
         "cloud_computing":   "Cloud Computing",
@@ -149,6 +158,65 @@ data:
     def is_financial_milestone(item: dict) -> bool:
         text = (item.get("title", "") + " " + item.get("snippet", ""))
         return bool(_FINANCIAL_MILESTONE_RE.search(text))
+
+    # ------------------------------------------------------------------
+    # Entity-based routing for the TECH family. Each tech article is assigned to a
+    # single area by what it is ABOUT. High-confidence cases are routed in code
+    # (named AI companies/models -> AI Development; named cloud providers/infra ->
+    # Cloud Computing; security incidents -> IT Security; valuation/IPO -> Financial
+    # Markets); ambiguous ones go to classify_articles() (one AI call).
+    # ------------------------------------------------------------------
+
+    # AI companies, labs, and models -> ai_development
+    _AI_ENTITY_RE = re.compile(
+        r"\b(anthropic|claude|openai|chatgpt|gpt-?\d|\bo[134]\b|sora|dall-?e|"
+        r"mistral|\bxai\b|grok|gemini|deepmind|\bbard\b|llama|meta ai|"
+        r"hugging ?face|cohere|perplexity|stability ai|stable diffusion|midjourney|"
+        r"runway|deepseek|qwen|ernie|moonshot|\bkimi\b|01\.ai|\byi\b|"
+        r"cursor|codeium|copilot|replit|langchain|llamaindex|"
+        r"aleph alpha|black forest labs|elevenlabs|synthesia|"
+        r"large language model|\bllm\b|\bllms\b|generative ai|gen ?ai|"
+        r"foundation model|diffusion model|multimodal|fine-?tun|"
+        r"\bai model|ai chatbot|ai assistant|ai agent|agentic|neural network)\b",
+        re.IGNORECASE,
+    )
+    # Cloud providers and infrastructure -> cloud_computing
+    _CLOUD_ENTITY_RE = re.compile(
+        r"\b(aws|amazon web services|\bec2\b|\bs3\b|azure|google cloud|\bgcp\b|"
+        r"oracle cloud|\boci\b|ibm cloud|alibaba cloud|aliyun|tencent cloud|"
+        r"huawei cloud|ovhcloud|\bovh\b|hetzner|scaleway|ionos|stackit|t-systems|"
+        r"exoscale|upcloud|digitalocean|linode|vultr|cloudflare|openstack|"
+        r"kubernetes|\bk8s\b|serverless|data ?cent(?:er|re)|hyperscaler|"
+        r"databricks|snowflake|mongodb|confluent|hashicorp|vmware|"
+        r"\bpaas\b|\biaas\b)\b",
+        re.IGNORECASE,
+    )
+    # Vendor newsrooms route deterministically by domain.
+    DOMAIN_ROUTE = {
+        "aws.amazon.com":            "cloud_computing",
+        "cloudblog.withgoogle.com":  "cloud_computing",
+        "microsoft.com":             "cloud_computing",  # Azure release comms feed
+        "openai.com":                "ai_development",
+    }
+    TECH_AREAS = ("cloud_computing", "ai_development", "it_security")
+
+    def route_tech(item: dict) -> str:
+        """Return the area for a tech article, or '' if ambiguous (-> AI classifier)."""
+        if is_security_incident(item):
+            return "it_security"
+        if is_financial_milestone(item):
+            return "financial_markets"
+        dom = _domain_of(item.get("url", ""))
+        if dom in DOMAIN_ROUTE:
+            return DOMAIN_ROUTE[dom]
+        text = item.get("title", "") + " " + item.get("snippet", "")
+        ai = bool(_AI_ENTITY_RE.search(text))
+        cloud = bool(_CLOUD_ENTITY_RE.search(text))
+        if ai and not cloud:
+            return "ai_development"
+        if cloud and not ai:
+            return "cloud_computing"
+        return ""  # both or neither -> let the model decide
 
     # ------------------------------------------------------------------
     # Token provider that wraps WorkloadIdentityCredential for the OpenAI client
@@ -371,6 +439,75 @@ data:
         log.info("Diversified %d candidates down to %d across %d sources",
                  len(candidates), len(kept), len(seen))
         return kept
+
+    # Pull a family of feeds into one URL-deduplicated candidate pool.
+    def gather(feeds: list[str], since: datetime) -> list[dict]:
+        cands = rss_fetch(feeds, since)
+        seen: set[str] = set()
+        merged = []
+        for c in cands:
+            if c["url"] and c["url"] not in seen:
+                seen.add(c["url"])
+                merged.append(c)
+        return merged
+
+    def _parse_json(raw: str) -> dict:
+        raw = re.sub(r'^```(?:json)?\s*', '', raw.strip())
+        raw = re.sub(r'\s*```$', '', raw).strip()
+        raw = re.sub(r',\s*([}\]])', r'\1', raw)
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if not m:
+                raise ValueError(f"Could not parse JSON: {raw[:200]}")
+            return json.loads(re.sub(r',\s*([}\]])', r'\1', m.group(0)))
+
+    # Classify ambiguous tech articles (those route_tech() could not decide) into a
+    # single area by topic. One AI call for the whole batch.
+    def classify_articles(client: OpenAI, articles: list[dict]) -> dict:
+        if not articles:
+            return {}
+        payload = [{"i": idx, "title": a["title"], "source": a.get("source", "")}
+                   for idx, a in enumerate(articles)]
+        prompt = (
+            "Classify each technology news headline into exactly ONE area by what it "
+            "is primarily about. Areas:\n"
+            "- cloud_computing: cloud PROVIDERS and infrastructure (AWS, Microsoft "
+            "Azure, Google Cloud, Oracle/OCI, IBM, Alibaba, OVHcloud, Hetzner, "
+            "T-Systems, etc.) — new services/features, datacenters, regions, "
+            "Kubernetes/serverless/platform engineering.\n"
+            "- ai_development: AI COMPANIES and models (Anthropic, OpenAI, Mistral, "
+            "xAI/Grok, Google Gemini/DeepMind, Meta Llama, DeepSeek/Qwen, Cursor, "
+            "etc.) — models, features, tools, research, AI acquisitions.\n"
+            "- it_security: security vulnerabilities, breaches, exploits, threats.\n"
+            "- financial_markets: IPOs, valuations, stock/crypto moves, earnings, M&A "
+            "framed as a financial event.\n"
+            "- none: not a good fit for any of the above.\n\n"
+            "Return ONLY JSON: {\"a\": [{\"i\": 0, \"area\": \"ai_development\"}, ...]}\n\n"
+            "Headlines (JSON):\n" + json.dumps(payload, ensure_ascii=False)
+        )
+        try:
+            resp = client.chat.completions.create(
+                model=OPENAI_DEPLOYMENT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_completion_tokens=4000,
+            )
+            data = _parse_json(resp.choices[0].message.content)
+        except Exception:
+            log.exception("Classification call failed — ambiguous items left unrouted")
+            return {}
+        valid = set(TECH_AREAS) | {"financial_markets"}
+        out = {}
+        for row in data.get("a", []):
+            try:
+                idx = int(row["i"]); area = row.get("area", "")
+            except (KeyError, TypeError, ValueError):
+                continue
+            if 0 <= idx < len(articles) and area in valid:
+                out[articles[idx]["url"]] = area
+        return out
 
     # Per-area prompt context: persona, what to select, how to summarise, how to synthesise
     AREA_PROMPTS = {
@@ -725,22 +862,60 @@ data:
         digest_id = upsert_digest(conn, today)
         conn.commit()
 
-        # URLs already picked by an earlier area in THIS run. A story belongs to a
-        # single area per digest, so once an area claims it, later areas exclude it
-        # (prevents the same article appearing in e.g. AI Development and Cloud
-        # Computing). Areas are processed in AREA_FEEDS order, so earlier areas win.
+        tech_since = now_utc - timedelta(hours=72)
+        news_since = now_utc - timedelta(hours=48)
+
+        # 1) TECH family: one pool, classified by topic into the tech areas. Named
+        #    AI companies/models -> AI, cloud providers/infra -> Cloud, security
+        #    incidents -> Security, valuations/IPOs -> Financial; the rest go to one
+        #    AI classification call. This is what makes categorisation depend on the
+        #    story, not on which feed it came from.
+        tech_pool = gather(TECH_FEEDS, tech_since)
+        routed: dict[str, list] = {
+            "cloud_computing": [], "ai_development": [],
+            "it_security": [], "financial_markets": [],
+        }
+        ambiguous = []
+        for a in tech_pool:
+            r = route_tech(a)
+            if r in routed:
+                routed[r].append(a)
+            else:
+                ambiguous.append(a)
+        log.info("Tech pool %d: routed %s, ambiguous %d", len(tech_pool),
+                 {k: len(v) for k, v in routed.items()}, len(ambiguous))
+        assigned = classify_articles(client, ambiguous[:150])
+        for a in ambiguous:
+            r = assigned.get(a["url"])
+            if r in routed:
+                routed[r].append(a)
+        log.info("After classify: %s", {k: len(v) for k, v in routed.items()})
+
+        # 2) Other families.
+        finance_pool = routed["financial_markets"] + gather(FINANCE_FEEDS, news_since)
+        world_pool = gather(WORLD_FEEDS, news_since)
+        euro_pool = gather(EURO_FEEDS, news_since)
+
+        # 3) Candidate pool per area, processed in an order that lets entity-clear
+        #    areas and Europe claim their stories first; cross-area dedup then keeps
+        #    any story to a single area.
+        area_candidates = {
+            "it_security":       routed["it_security"],
+            "ai_development":    routed["ai_development"],
+            "cloud_computing":   routed["cloud_computing"],
+            "financial_markets": finance_pool,
+            "euro_news":         euro_pool,
+            "world_news":        world_pool,
+        }
+
+        # URLs already picked by an earlier area in THIS run (no cross-area dupes).
         selected_urls: set[str] = set()
 
         failed_areas = []
-        for area in AREA_FEEDS:
+        for area, candidates in area_candidates.items():
             # Isolate each area: a failure in one must not abort the others.
             try:
-                log.info("Processing area: %s", area)
-                window = WINDOW_HOURS.get(area, DEFAULT_WINDOW_HOURS)
-                since = now_utc - timedelta(hours=window)
-
-                # Pull and de-duplicate entries across the area's RSS feeds.
-                candidates = rss_fetch(AREA_FEEDS[area], since)
+                # De-duplicate by URL within the area's pool.
                 seen_urls: set[str] = set()
                 merged = []
                 for c in candidates:
@@ -748,27 +923,7 @@ data:
                         seen_urls.add(c["url"])
                         merged.append(c)
                 candidates = merged
-
-                # Security incidents are routed to IT Security only — strip them
-                # from these areas' pools so the model can't place them here.
-                if area in SECURITY_ONLY_AREAS:
-                    before = len(candidates)
-                    candidates = [c for c in candidates if not is_security_incident(c)]
-                    if before != len(candidates):
-                        log.info("Area %s: dropped %d security-incident stories "
-                                 "(routed to IT Security)", area, before - len(candidates))
-
-                # Pure financial-milestone stories (valuations, IPOs) belong to
-                # Financial Markets — strip them from the tech areas.
-                if area in FINANCIAL_ONLY_AREAS:
-                    before = len(candidates)
-                    candidates = [c for c in candidates if not is_financial_milestone(c)]
-                    if before != len(candidates):
-                        log.info("Area %s: dropped %d financial-milestone stories "
-                                 "(routed to Financial Markets)", area, before - len(candidates))
-
-                log.info("Area %s: %d unique candidates (window %dh)",
-                         area, len(candidates), window)
+                log.info("Processing area: %s (%d candidates)", area, len(candidates))
 
                 if not candidates:
                     log.error("No RSS results for %s — skipping", area)
