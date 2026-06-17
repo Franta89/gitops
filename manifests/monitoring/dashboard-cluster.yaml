@@ -49,7 +49,7 @@ data:
           "type": "gauge",
           "gridPos": {
             "h": 7,
-            "w": 4,
+            "w": 3,
             "x": 0,
             "y": 1
           },
@@ -108,8 +108,8 @@ data:
           "type": "gauge",
           "gridPos": {
             "h": 7,
-            "w": 4,
-            "x": 4,
+            "w": 3,
+            "x": 3,
             "y": 1
           },
           "datasource": {
@@ -166,8 +166,8 @@ data:
           "type": "gauge",
           "gridPos": {
             "h": 7,
-            "w": 4,
-            "x": 8,
+            "w": 3,
+            "x": 6,
             "y": 1
           },
           "datasource": {
@@ -196,6 +196,65 @@ data:
                   {
                     "color": "yellow",
                     "value": 70
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
+          "id": 8,
+          "title": "Memory Reserved (Requests)",
+          "description": "Sum of RUNNING pods' memory requests / node allocatable memory — the memory the scheduler reserves (terminated pods excluded). Note: unlike usage, this is what blocks scheduling. If usage is higher than reserved, pods are using more than they request and may be evicted first under node memory pressure.",
+          "type": "gauge",
+          "gridPos": {
+            "h": 7,
+            "w": 3,
+            "x": 9,
+            "y": 1
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\"} * on(namespace,pod) group_left() (kube_pod_status_phase{phase=\"Running\"} == 1)) / sum(kube_node_status_allocatable{resource=\"memory\"}) * 100",
+              "legendFormat": "Memory requested %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 75
                   },
                   {
                     "color": "red",
@@ -350,8 +409,13 @@ data:
             },
             {
               "expr": "(1 - avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
-              "legendFormat": "Memory %",
+              "legendFormat": "Memory used %",
               "refId": "B"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\"} * on(namespace,pod) group_left() (kube_pod_status_phase{phase=\"Running\"} == 1)) / sum(kube_node_status_allocatable{resource=\"memory\"}) * 100",
+              "legendFormat": "Memory reserved %",
+              "refId": "D"
             }
           ],
           "fieldConfig": {
