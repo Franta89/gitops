@@ -6,6 +6,7 @@ metadata:
 data:
   aggregator.py: |
     import os
+    import re
     import json
     import logging
     import requests
@@ -95,6 +96,25 @@ data:
         "cloud_computing": 72,
         "it_security":     72,
     }
+
+    # Security incidents belong ONLY to IT Security. The model can't be fully
+    # trusted to honour the prompt exclusion, so these areas are filtered
+    # deterministically in code as well. The regex targets incident language
+    # (a flaw/breach/attack), NOT the word "security" alone — so a new cloud
+    # "security product/feature" announcement is still allowed through.
+    SECURITY_ONLY_AREAS = {"cloud_computing", "ai_development"}
+    _SECURITY_INCIDENT_RE = re.compile(
+        r"\b(vulnerabilit|exploit|zero[- ]day|ransomware|malware|breach|"
+        r"data leak|hack(?:ed|ers?|ing)|phish|backdoor|trojan|spyware|botnet|"
+        r"stole|stealing|steal \w+ (?:code|data|credential)|RCE|"
+        r"remote code execution|privilege escalation|unpatched|security flaw)\b"
+        r"|CVE-\d",
+        re.IGNORECASE,
+    )
+
+    def is_security_incident(item: dict) -> bool:
+        text = (item.get("title", "") + " " + item.get("snippet", ""))
+        return bool(_SECURITY_INCIDENT_RE.search(text))
 
     # ------------------------------------------------------------------
     # Token provider that wraps WorkloadIdentityCredential for the OpenAI client
@@ -655,6 +675,16 @@ data:
                         seen_urls.add(c["url"])
                         merged.append(c)
                 candidates = merged
+
+                # Security incidents are routed to IT Security only — strip them
+                # from these areas' pools so the model can't place them here.
+                if area in SECURITY_ONLY_AREAS:
+                    before = len(candidates)
+                    candidates = [c for c in candidates if not is_security_incident(c)]
+                    if before != len(candidates):
+                        log.info("Area %s: dropped %d security-incident stories "
+                                 "(routed to IT Security)", area, before - len(candidates))
+
                 log.info("Area %s: %d unique candidates (window %dh)",
                          area, len(candidates), window)
 
@@ -688,17 +718,32 @@ data:
                     except (TypeError, ValueError):
                         item["rank"] = 1
 
-                # Drop any item whose URL was already claimed by an earlier area this
-                # run (guards against the model echoing an excluded candidate), then
+                # Clean the returned items: drop URLs already claimed by an earlier
+                # area this run, drop within-area repeats, and (for security-only
+                # areas) drop any security incident the model echoed back. Then
                 # reserve the survivors so later areas can't reuse them.
-                deduped = [it for it in items if it.get("url") not in selected_urls]
+                deduped = []
+                local_seen: set[str] = set()
+                local_titles: set[str] = set()
+                for it in items:
+                    url = it.get("url")
+                    title_key = re.sub(r"\W+", " ", it.get("title", "")).strip().lower()
+                    if not url or url in selected_urls or url in local_seen:
+                        continue
+                    if title_key and title_key in local_titles:
+                        continue  # same story from a different feed/URL within this area
+                    if area in SECURITY_ONLY_AREAS and is_security_incident(it):
+                        continue
+                    local_seen.add(url)
+                    if title_key:
+                        local_titles.add(title_key)
+                    deduped.append(it)
                 items = deduped
                 for item in items:
-                    if item.get("url"):
-                        selected_urls.add(item["url"])
+                    selected_urls.add(item["url"])
 
                 if not items:
-                    log.warning("All items for %s were cross-area duplicates — skipping", area)
+                    log.warning("No items left for %s after dedup/filter — skipping", area)
                     continue
 
                 area_summary_id = upsert_area_summary(
