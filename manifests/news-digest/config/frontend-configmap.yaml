@@ -55,7 +55,7 @@ data:
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Daily Dose of Tech</title>
       <meta name="description" content="Daily Dose of Tech — AI-curated news digest." />
-      <link rel="stylesheet" href="/style.css?v=6" />
+      <link rel="stylesheet" href="/style.css?v=7" />
     </head>
     <body>
       <header>
@@ -264,12 +264,12 @@ data:
     /* Frosted-glass panel so the aurora backdrop shows through the About section
        too, while keeping the text crisp. */
     .about-panel {
-      background: rgba(26, 29, 39, 0.6);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(26, 29, 39, 0.4);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
       border-bottom: 1px solid var(--border);
     }
-    body.light .about-panel { background: rgba(255, 255, 255, 0.6); }
+    body.light .about-panel { background: rgba(255, 255, 255, 0.45); }
     .about-inner {
       max-width: 1200px;
       margin: 0 auto;
