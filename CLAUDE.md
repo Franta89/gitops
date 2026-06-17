@@ -112,6 +112,8 @@ key-based external APIs.
   `seccompProfile: RuntimeDefault`. CPU and memory limits set on every container.
 - **Full security posture (how the cluster is hardened) is documented in
   [`SECURITY.md`](SECURITY.md);** forward-looking backlog in `infra-terraform/whatnext.md`.
+- **Monitoring setup (Prometheus/Grafana, dashboards, Cloudflare traffic pipeline)
+  is documented in [`MONITORING.md`](MONITORING.md).**
 
 ## Azure Key Vault secret workflow
 
