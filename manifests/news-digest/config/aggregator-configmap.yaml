@@ -624,11 +624,18 @@ data:
             ),
         },
         "world_news": {
-            "persona": "a senior international affairs correspondent and geopolitical analyst",
+            "persona": "a senior international affairs correspondent focused on diplomacy",
             "select": (
-                "diplomatic developments, geopolitical conflicts, peace negotiations, "
-                "humanitarian crises, climate agreements, military events, and major "
-                "international policy shifts from around the world"
+                "PRIORITISE advancements in international relations — summits and "
+                "high-level meetings between heads of state or government, bilateral and "
+                "multilateral talks, treaties, trade deals, agreements, new alliances and "
+                "partnerships, diplomatic breakthroughs and normalisations, and major "
+                "international policy or cooperation milestones from around the world. "
+                "Also include landmark climate or humanitarian agreements. Wars, military "
+                "strikes, conflicts, and protests/strikes ARE still relevant but must be "
+                "the MINORITY: include AT MOST one or two such stories and never let "
+                "conflict dominate — favour cooperation and dealmaking over the latest "
+                "battlefield update"
             ),
             "exclude": (
                 "stories primarily about Europe or the EU — those belong to the Euro News "
@@ -637,33 +644,37 @@ data:
             ),
             "summarize": (
                 "Name the countries, parties, leaders, and agreements involved. "
-                "State dates, casualty figures, or treaty terms where available. "
-                "Explain geopolitical implications and regional impact."
+                "State dates, terms of the deal/treaty, or what was agreed where available. "
+                "Explain what the development advances in the relationship and its regional impact."
             ),
             "synthesize": (
-                "Identify geopolitical fault lines, diplomatic shifts, and "
-                "humanitarian implications across the selected stories."
+                "Identify where international cooperation, alliances, and diplomacy are "
+                "advancing across the selected stories."
             ),
         },
         "euro_news": {
-            "persona": "a senior European affairs correspondent",
+            "persona": "a senior European affairs correspondent focused on diplomacy",
             "select": (
-                "the most important news from Europe — EU policy and institutions, national "
-                "elections and politics across European countries, European diplomacy and "
-                "security, economy and society. Favour CONTINENTAL Europe (Germany, France, "
-                "the Nordics, Benelux, Iberia, Italy, Poland, the Western Balkans and beyond), "
-                "not only the UK. This is the same kind of coverage as World News, but Europe-only"
+                "PRIORITISE advancements in European affairs and relations — EU summits and "
+                "Council meetings, leader-to-leader meetings, treaties, trade deals and "
+                "agreements, new alliances and partnerships, enlargement and cooperation, "
+                "and major EU or national policy progress. Wars, strikes, and conflicts ARE "
+                "still relevant but must be the MINORITY: include AT MOST one or two such "
+                "stories and never let conflict dominate — favour cooperation and dealmaking. "
+                "Favour CONTINENTAL Europe (Germany, France, the Nordics, Benelux, Iberia, "
+                "Italy, Poland, the Western Balkans and beyond), not only the UK. This is the "
+                "same kind of coverage as World News, but Europe-only"
             ),
             "exclude": (
                 "stories with no substantive European dimension — those belong to World News"
             ),
             "summarize": (
                 "Name the countries, parties, leaders, and agreements involved. "
-                "State dates, figures, or policy terms where available. "
-                "Explain implications for Europe and the EU."
+                "State dates, terms of the deal/agreement, or what was agreed where available. "
+                "Explain what the development advances for Europe and the EU."
             ),
             "synthesize": (
-                "Identify the main political, economic, and diplomatic currents across "
+                "Identify where cooperation, alliances, and diplomacy are advancing across "
                 "Europe in the selected stories."
             ),
         },
