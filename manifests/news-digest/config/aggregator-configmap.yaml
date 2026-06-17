@@ -36,6 +36,9 @@ data:
             "https://techcrunch.com/feed/",
             "https://www.zdnet.com/news/rss.xml",
             "https://feeds.arstechnica.com/arstechnica/technology-lab",
+            # European/UK enterprise & cloud — feeds the "European angle" slot
+            "https://www.silicon.co.uk/feed",
+            "https://www.computerweekly.com/rss/All-Computer-Weekly-content.xml",
         ],
         "ai_development": [
             "https://venturebeat.com/category/ai/feed/",
@@ -43,6 +46,9 @@ data:
             "https://www.theverge.com/rss/index.xml",
             "https://feeds.arstechnica.com/arstechnica/technology-lab",
             "https://www.wired.com/feed/tag/ai/latest/rss",
+            # European tech / AI startups & funding — feeds the "European angle" slot
+            "https://sifted.eu/feed",
+            "https://www.eu-startups.com/feed/",
         ],
         "it_security": [
             "https://www.bleepingcomputer.com/feed/",
@@ -50,6 +56,8 @@ data:
             "https://krebsonsecurity.com/feed/",
             "https://www.securityweek.com/feed/",
             "https://www.darkreading.com/rss.xml",
+            # UK/European security coverage — feeds the "European angle" slot
+            "https://www.infosecurity-magazine.com/rss/news/",
         ],
         "financial_markets": [
             "https://www.cnbc.com/id/20910258/device/rss/rss.html",
@@ -308,9 +316,14 @@ data:
         "cloud_computing": {
             "persona": "a principal cloud architect and infrastructure engineer",
             "select": (
-                "architectural announcements, cloud provider releases, Kubernetes/container "
-                "updates, serverless and platform engineering shifts, performance benchmarks, "
-                "and infrastructure product launches"
+                "advancements and NEW FEATURES from cloud providers — service launches and "
+                "updates across the hyperscalers (AWS, Microsoft Azure, Google Cloud, Oracle "
+                "Cloud, IBM Cloud, Alibaba Cloud), plus Kubernetes/container, serverless, and "
+                "platform-engineering releases, new regions/instances, and performance or "
+                "pricing improvements. This area is about CAPABILITIES, not flaws: do NOT "
+                "select security vulnerabilities, CVEs, breaches, or exploits — those belong "
+                "to IT Security. Cover a security item here only if it is a new cloud security "
+                "PRODUCT or feature, not an incident"
             ),
             "summarize": (
                 "Cite cloud provider names, service names, and measurable metrics "
@@ -321,12 +334,19 @@ data:
                 "Identify specific platform shifts, vendor movements, and "
                 "infrastructure engineering implications."
             ),
+            "european": (
+                "European cloud sovereignty and local/regional providers — OVHcloud, Hetzner, "
+                "Scaleway, IONOS, STACKIT, T-Systems, Exoscale, UpCloud — EU hyperscaler "
+                "regions, and Gaia-X / EU data-sovereignty initiatives"
+            ),
         },
         "ai_development": {
             "persona": "a principal AI/ML engineer and researcher",
             "select": (
-                "model releases, benchmark results, training/inference improvements, "
-                "framework updates, API changes, and research breakthroughs"
+                "recent ADVANCEMENTS in AI development worldwide — model releases, NEW TOOLS "
+                "and frameworks, agentic and developer tooling, training/inference improvements, "
+                "API/SDK features, and research breakthroughs. Emphasise what is new and what "
+                "engineers can now build or use"
             ),
             "summarize": (
                 "Cite model names, parameter counts, benchmark scores (MMLU, HumanEval etc.), "
@@ -336,12 +356,21 @@ data:
                 "Identify convergent model architecture trends, tooling shifts, and "
                 "concrete implications for AI engineering teams."
             ),
+            "european": (
+                "the European AI scene — labs and startups such as Mistral AI, Aleph Alpha, "
+                "Hugging Face, Google DeepMind (London), Black Forest Labs, ElevenLabs, and "
+                "Synthesia — and EU AI policy (the EU AI Act, European AI funding and "
+                "regulation)"
+            ),
         },
         "it_security": {
             "persona": "a principal security engineer and threat analyst",
             "select": (
                 "CVE disclosures, active exploits, patch releases, threat actor campaigns, "
-                "data breaches, ransomware incidents, and regulatory/compliance changes"
+                "data breaches, ransomware incidents, and regulatory/compliance changes. "
+                "This is the home for ALL security flaws and incidents — including "
+                "vulnerabilities in cloud and AI products (e.g. a flaw in an AI assistant or "
+                "a SaaS platform belongs HERE, not in Cloud Computing or AI Development)"
             ),
             "summarize": (
                 "Cite CVE IDs, CVSS scores, affected product versions, and patch availability. "
@@ -350,6 +379,11 @@ data:
             "synthesize": (
                 "Identify active threat patterns, systemic vulnerabilities, and "
                 "priority remediation actions for security teams."
+            ),
+            "european": (
+                "European incidents and policy — breaches affecting European organisations, "
+                "ENISA advisories, and EU cyber regulation (NIS2, GDPR enforcement, the Cyber "
+                "Resilience Act)"
             ),
         },
         "financial_markets": {
@@ -371,6 +405,11 @@ data:
                 "Identify market-moving trends, sector rotations, macro signals, and "
                 "investment implications across the selected stories."
             ),
+            "european": (
+                "European markets and institutions — ECB decisions, Euro Stoxx / DAX / CAC / "
+                "FTSE moves, European bank and corporate earnings, EU financial regulation, "
+                "and Eurozone macro data"
+            ),
         },
         "world_news": {
             "persona": "a senior international affairs correspondent and geopolitical analyst",
@@ -389,6 +428,10 @@ data:
             "synthesize": (
                 "Identify geopolitical fault lines, diplomatic shifts, and "
                 "humanitarian implications across the selected stories."
+            ),
+            "european": (
+                "European affairs — EU policy and institutions, elections and major "
+                "developments in European countries, and Europe's role in global diplomacy"
             ),
         },
     }
@@ -416,13 +459,23 @@ data:
                 'so do NOT reject everything: surface the best available even if modest.'
             )
         else:
+            # Primarily global coverage, with one slot reserved for the European
+            # angle of this area so the digest stays relevant to a European reader.
+            euro = ctx.get("european", "")
+            euro_clause = (
+                f' Aim for roughly ONE of the selected articles to cover the European '
+                f'dimension of this area ({euro}). If the candidate pool contains no '
+                f'genuinely relevant European story, do not force or invent one — keep '
+                f'all five global rather than promote a weak European item.'
+            ) if euro else ''
             select_rule = (
-                'Select 3-5 articles. '
+                'Select about 5 articles (4-6 is acceptable). '
                 'Favour the most important developments reported across the world, not '
                 'whatever a single source published most often. Prefer at least 3 '
                 'distinct sources (see the "source" field) and take no more than one item '
                 'from any single source. Exclude routine package-release, changelog, and '
                 'version-bump posts unless the release is genuinely major news.'
+                + euro_clause
             )
 
         prompt = (
