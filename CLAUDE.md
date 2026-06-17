@@ -62,9 +62,9 @@ An HTTP→HTTPS 301 redirect route replaces the old nginx force-ssl-redirect ann
 The app gathers news in real time from authoritative **RSS/Atom feeds** (grouped by
 **family** in `aggregator.py` — tech/finance/world/euro — plus vendor newsrooms:
 BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, AWS, OpenAI,
-and more), then **categorizes each story by content** (`route_tech()` entity routing
-+ one `classify_articles()` AI call) so the area depends on what the story is about,
-not which feed carried it. It uses Azure AI Services (GPT-5.4-mini) — called directly
+and more), then **categorizes each story by content** (`route_tech()` entity
+routing plus one `classify_articles()` AI call) so the area depends on what the
+story is about, not which feed carried it. It uses Azure AI Services (GPT-5.4-mini) — called directly
 against the AI Services account's **v1 API** (`*.openai.azure.com/openai/v1/`,
 stock `OpenAI` client + Entra bearer token, no dated api-version), not via the
 Foundry Hub — to pick and summarise the top ~5 articles per area, and serves
