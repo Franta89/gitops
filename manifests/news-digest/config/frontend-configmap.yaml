@@ -55,7 +55,7 @@ data:
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Daily Dose of Tech</title>
       <meta name="description" content="Daily Dose of Tech — AI-curated news digest." />
-      <link rel="stylesheet" href="/style.css" />
+      <link rel="stylesheet" href="/style.css?v=2" />
     </head>
     <body>
       <header>
@@ -181,6 +181,26 @@ data:
       min-height: 100vh;
       transition: background 0.2s, color 0.2s;
     }
+
+    /* Modern tech backdrop: a faint inline-SVG circuit motif tiled behind the
+       page, plus two soft accent "glow" gradients. Inline SVG + data: URI keeps
+       it same-origin (CSP-safe) and crisp at any resolution — no external image,
+       no binary asset. Sits on a fixed layer behind all content. */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-image:
+        radial-gradient(1100px 560px at 85% -12%, rgba(99, 179, 237, 0.16), transparent 60%),
+        radial-gradient(900px 520px at -10% 112%, rgba(99, 179, 237, 0.10), transparent 55%),
+        url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='90'%20height='90'%20viewBox='0%200%2090%2090'%3E%3Cg%20fill='none'%20stroke='%2363b3ed'%20stroke-width='1.1'%20opacity='0.55'%3E%3Cpath%20d='M10%200%20V22%20H34'/%3E%3Cpath%20d='M90%2028%20H58%20V64'/%3E%3Cpath%20d='M0%2054%20H24%20V90'/%3E%3Cpath%20d='M45%2045%20H90'/%3E%3Cpath%20d='M45%2045%20V14'/%3E%3Cpath%20d='M45%2045%20L20%2070'/%3E%3C/g%3E%3Cg%20fill='%2363b3ed'%20opacity='0.7'%3E%3Ccircle%20cx='34'%20cy='22'%20r='2.6'/%3E%3Ccircle%20cx='58'%20cy='64'%20r='2.6'/%3E%3Ccircle%20cx='24'%20cy='54'%20r='2.6'/%3E%3Ccircle%20cx='45'%20cy='45'%20r='3.2'/%3E%3Ccircle%20cx='45'%20cy='14'%20r='2.2'/%3E%3C/g%3E%3C/svg%3E");
+      background-repeat: no-repeat, no-repeat, repeat;
+      background-size: auto, auto, 90px 90px;
+      opacity: 0.5;
+    }
+    body.light::before { opacity: 0.32; }
 
     header {
       background: var(--bg-secondary);
@@ -312,7 +332,16 @@ data:
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
     }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+      border-color: var(--border-light);
+    }
+    body.light .card { box-shadow: 0 6px 18px rgba(45, 55, 72, 0.10); }
+    body.light .card:hover { box-shadow: 0 10px 26px rgba(45, 55, 72, 0.16); }
 
     .card-header { display: flex; justify-content: space-between; align-items: center; }
     .card-title { font-size: 1rem; font-weight: 600; color: var(--accent); }

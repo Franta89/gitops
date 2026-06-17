@@ -138,8 +138,9 @@ retry compensates.
 nginx reads those per request, no restart needed. **nginx config** changes
 (`frontend-nginx` / `default.conf`, e.g. the security headers) only take effect
 after `kubectl rollout restart deployment/frontend -n news-digest`, since nginx
-reads its config only at startup. Still bump `app.js?v=N` on `app.js` changes for
-browser/CDN cache-busting. The About-page copy and the ASCII architecture diagram
+reads its config only at startup. Still bump the cache-bust query on changes
+(`app.js?v=N` for `app.js`, `style.css?v=N` for `style.css`) for browser/CDN
+cache-busting. The About-page copy and the ASCII architecture diagram
 live in `app.js` (`T.en` / `T.cs`, `ARCH_DIAGRAM`) — keep both languages in sync.
 
 **Troubleshooting:**
