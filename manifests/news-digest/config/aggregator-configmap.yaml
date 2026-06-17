@@ -320,10 +320,12 @@ data:
                 "updates across the hyperscalers (AWS, Microsoft Azure, Google Cloud, Oracle "
                 "Cloud, IBM Cloud, Alibaba Cloud), plus Kubernetes/container, serverless, and "
                 "platform-engineering releases, new regions/instances, and performance or "
-                "pricing improvements. This area is about CAPABILITIES, not flaws: do NOT "
-                "select security vulnerabilities, CVEs, breaches, or exploits — those belong "
-                "to IT Security. Cover a security item here only if it is a new cloud security "
-                "PRODUCT or feature, not an incident"
+                "pricing improvements"
+            ),
+            "exclude": (
+                "security vulnerabilities, CVEs, exploits, data breaches, ransomware, or any "
+                "security incident — even when they involve a cloud or SaaS product; these "
+                "belong exclusively to the IT Security area"
             ),
             "summarize": (
                 "Cite cloud provider names, service names, and measurable metrics "
@@ -346,11 +348,12 @@ data:
                 "recent ADVANCEMENTS in AI development worldwide — model releases, NEW TOOLS "
                 "and frameworks, agentic and developer tooling, training/inference improvements, "
                 "API/SDK features, and research breakthroughs. Emphasise what is new and what "
-                "engineers can now build or use. This area is about CAPABILITIES, not flaws: do "
-                "NOT select security vulnerabilities, CVEs, exploits, or breaches — even when "
-                "they involve an AI product or assistant (e.g. a vulnerability in an AI coding "
-                "assistant) — those belong to IT Security. Cover security here only as a new AI "
-                "safety/guardrail capability, not an incident"
+                "engineers can now build or use"
+            ),
+            "exclude": (
+                "security vulnerabilities, CVEs, exploits, data breaches, or any security "
+                "incident — even when they involve an AI product, assistant, or coding tool; "
+                "these belong exclusively to the IT Security area"
             ),
             "summarize": (
                 "Cite model names, parameter counts, benchmark scores (MMLU, HumanEval etc.), "
@@ -482,12 +485,19 @@ data:
                 + euro_clause
             )
 
+        exclude = ctx.get("exclude", "")
+        exclude_line = (
+            f'\nSTRICT EXCLUSION — these belong to a different area and MUST be omitted '
+            f'here, even if prominent or widely reported: {exclude}.'
+        ) if exclude else ''
+
         prompt = (
             f'You are {ctx["persona"]} covering "{area_label}".\n'
             f'Below are {len(fresh)} recent news articles from roughly the past 1-3 days.\n\n'
             'Task:\n'
             f'1. {select_rule} Prioritise: {ctx["select"]}. '
-            'Skip marketing copy, opinion pieces, and near-duplicate stories.\n'
+            'Skip marketing copy, opinion pieces, and near-duplicate stories.'
+            f'{exclude_line}\n'
             f'2. For each selected article write a precise summary (4-6 sentences). '
             f'{ctx["summarize"]} '
             'Do NOT use vague phrases like "highlights the importance of".\n'
@@ -622,6 +632,12 @@ data:
         digest_id = upsert_digest(conn, today)
         conn.commit()
 
+        # URLs already picked by an earlier area in THIS run. A story belongs to a
+        # single area per digest, so once an area claims it, later areas exclude it
+        # (prevents the same article appearing in e.g. AI Development and Cloud
+        # Computing). Areas are processed in AREA_FEEDS order, so earlier areas win.
+        selected_urls: set[str] = set()
+
         failed_areas = []
         for area in AREA_FEEDS:
             # Isolate each area: a failure in one must not abort the others.
@@ -646,17 +662,20 @@ data:
                     log.error("No RSS results for %s — skipping", area)
                     continue
                 diversified = diversify_by_source(candidates)
-                result = summarize_area(client, area, AREA_LABELS[area], diversified, known_urls)
+                # Exclude cross-day history AND anything already claimed earlier in
+                # this run, so no story is repeated across areas.
+                result = summarize_area(client, area, AREA_LABELS[area], diversified,
+                                        known_urls | selected_urls)
                 items = result.get("items", [])
 
                 if not items:
-                    # Never leave an area with an overview but zero stories.
-                    # Retry on the full pool, ignoring cross-day dedup AND relaxing
-                    # the diversity gate so a thin pool still yields the best story.
+                    # Never leave an area with an overview but zero stories. Retry on
+                    # the full pool ignoring cross-day dedup, but STILL exclude stories
+                    # already claimed by an earlier area this run (no cross-area dupes).
                     log.warning("AI returned 0 items for %s — retrying relaxed "
-                                "(no dedup, no diversity gate)", area)
+                                "(no cross-day dedup, no diversity gate)", area)
                     result = summarize_area(client, area, AREA_LABELS[area],
-                                            candidates, set(), relaxed=True)
+                                            candidates, set(selected_urls), relaxed=True)
                     items = result.get("items", [])
                     if not items:
                         log.error("Still 0 items for %s after relaxed retry", area)
@@ -668,6 +687,19 @@ data:
                         item["rank"] = max(1, min(5, int(item.get("rank", 1))))
                     except (TypeError, ValueError):
                         item["rank"] = 1
+
+                # Drop any item whose URL was already claimed by an earlier area this
+                # run (guards against the model echoing an excluded candidate), then
+                # reserve the survivors so later areas can't reuse them.
+                deduped = [it for it in items if it.get("url") not in selected_urls]
+                items = deduped
+                for item in items:
+                    if item.get("url"):
+                        selected_urls.add(item["url"])
+
+                if not items:
+                    log.warning("All items for %s were cross-area duplicates — skipping", area)
+                    continue
 
                 area_summary_id = upsert_area_summary(
                     conn, digest_id, area, result["overview"], result.get("overview_cs", "")
