@@ -109,7 +109,7 @@ data:
         <span id="footerText"></span>
       </footer>
 
-      <script src="/app.js?v=7"></script>
+      <script src="/app.js?v=8"></script>
     </body>
     </html>
 
@@ -362,6 +362,26 @@ data:
     .article-title a:hover { text-decoration: underline; }
     .article-summary { font-size: 0.8rem; line-height: 1.55; color: var(--text-muted); }
 
+    /* "Europe" divider between global and European stories within an area card. */
+    .europe-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin: 0.25rem 0;
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .europe-divider::before,
+    .europe-divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border-light);
+    }
+
     .back-btn {
       background: var(--btn-muted);
       color: var(--text-primary);
@@ -446,6 +466,7 @@ data:
         backBtn:        "<- Back to Daily",
         deepDive:       "Deep Dive v",
         closeArticles:  "Close ^",
+        europeDivider:  "Europe",
         loading:        "Loading today's digest...",
         loadingGeneric: "Loading...",
         loadingMonthly: "Loading monthly summary...",
@@ -481,6 +502,7 @@ data:
         backBtn:        "<- Zpet",
         deepDive:       "Zobrazit v",
         closeArticles:  "Skryt ^",
+        europeDivider:  "Evropa",
         loading:        "Nacitam dnesni prehled...",
         loadingGeneric: "Nacitam...",
         loadingMonthly: "Nacitam mesicni prehled...",
@@ -516,18 +538,20 @@ data:
         ai_development:    "AI Development",
         it_security:       "IT Security",
         financial_markets: "Financial Markets",
-        world_news:        "World News"
+        world_news:        "World News",
+        euro_news:         "Euro News"
       },
       cs: {
         cloud_computing:   "Cloudove technologie",
         ai_development:    "Vyvoj AI",
         it_security:       "IT Bezpecnost",
         financial_markets: "Financni trhy",
-        world_news:        "Svetove zpravy"
+        world_news:        "Svetove zpravy",
+        euro_news:         "Evropske zpravy"
       }
     };
 
-    const AREA_ORDER = ["cloud_computing", "ai_development", "it_security", "financial_markets", "world_news"];
+    const AREA_ORDER = ["cloud_computing", "ai_development", "it_security", "financial_markets", "world_news", "euro_news"];
 
     var currentDate = null;
     var currentDigestData = null;
@@ -664,19 +688,34 @@ data:
       return card;
     }
 
+    function articleHtml(item) {
+      var summary = (lang === "cs" && item.summary_cs) ? item.summary_cs : item.summary;
+      return '<div class="article">' +
+        '<div class="article-rank">#' + item.rank + '</div>' +
+        '<div class="article-title">' +
+          '<a href="' + escHtml(item.url) + '" target="_blank" rel="noopener">' +
+            escHtml(item.title) +
+          '</a>' +
+        '</div>' +
+        '<p class="article-summary">' + escHtml(summary) + '</p>' +
+      '</div>';
+    }
+
+    // Global stories first, then (when an area mixes both) a "Europe" divider
+    // followed by the European stories. Areas that are entirely global or entirely
+    // European (World News / Euro News) render as a single flat list.
     function renderArticles(container, items) {
-      container.innerHTML = items.map(function(item) {
-        var summary = (lang === "cs" && item.summary_cs) ? item.summary_cs : item.summary;
-        return '<div class="article">' +
-          '<div class="article-rank">#' + item.rank + '</div>' +
-          '<div class="article-title">' +
-            '<a href="' + escHtml(item.url) + '" target="_blank" rel="noopener">' +
-              escHtml(item.title) +
-            '</a>' +
-          '</div>' +
-          '<p class="article-summary">' + escHtml(summary) + '</p>' +
-        '</div>';
-      }).join("");
+      var global = items.filter(function(it) { return !it.is_european; });
+      var euro   = items.filter(function(it) { return it.is_european; });
+      var html = global.map(articleHtml).join("");
+      if (euro.length > 0) {
+        if (global.length > 0) {
+          html += '<div class="europe-divider"><span>' +
+                  escHtml(T[lang].europeDivider) + '</span></div>';
+        }
+        html += euro.map(articleHtml).join("");
+      }
+      container.innerHTML = html;
     }
 
     function toggleDeepDive(btn, articlesEl) {

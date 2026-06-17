@@ -69,14 +69,23 @@ data:
             "https://www.theguardian.com/uk/business/rss",
             "https://seekingalpha.com/market_currents.xml",
         ],
+        # World News = global affairs EXCLUDING Europe (Europe lives in euro_news).
         "world_news": [
             "https://feeds.bbci.co.uk/news/world/rss.xml",
             "https://www.aljazeera.com/xml/rss/all.xml",
             "https://www.theguardian.com/world/rss",
             "https://feeds.npr.org/1004/rss.xml",
-            "https://rss.dw.com/rdf/rss-en-world",
-            "https://www.france24.com/en/rss",
             "http://rss.cnn.com/rss/edition_world.rss",
+        ],
+        # Euro News = the same kind of content as World News, but Europe-only,
+        # with a continental (not UK-only) emphasis.
+        "euro_news": [
+            "https://www.euronews.com/rss?level=theme&name=news",
+            "https://rss.dw.com/rdf/rss-en-eu",
+            "https://www.france24.com/en/europe/rss",
+            "https://www.politico.eu/feed/",
+            "https://www.theguardian.com/world/europe-news/rss",
+            "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
         ],
     }
 
@@ -86,6 +95,14 @@ data:
         "it_security":       "IT Security",
         "financial_markets": "Financial Markets",
         "world_news":        "World News",
+        "euro_news":         "Euro News",
+    }
+
+    # Areas where stories are tagged European vs. global and shown in two groups
+    # (global on top, a "Europe" divider, then European stories). The world_news /
+    # euro_news pair is already segregated by area, so it is excluded here.
+    EUROPE_TAGGED_AREAS = {
+        "cloud_computing", "ai_development", "it_security", "financial_markets",
     }
 
     # Look-back window per area. Cross-day dedup (known_urls) prevents anything
@@ -174,7 +191,8 @@ data:
                 CREATE INDEX IF NOT EXISTS idx_news_items_area_summary
                     ON news_items(area_summary_id);
             """)
-            # Widen rank constraint from 1-3 to 1-5 on existing installations
+            # Widen rank constraint to 1-20 on existing installations (areas can hold
+            # ~5-6 items, and Europe-aware re-ranking renumbers 1..n).
             cur.execute("""
                 DO $$
                 BEGIN
@@ -184,7 +202,7 @@ data:
                     END;
                     BEGIN
                         ALTER TABLE news_items ADD CONSTRAINT news_items_rank_check
-                            CHECK (rank BETWEEN 1 AND 5);
+                            CHECK (rank BETWEEN 1 AND 20);
                     EXCEPTION WHEN duplicate_object THEN NULL;
                     END;
                 END $$;
@@ -199,6 +217,10 @@ data:
                     END;
                     BEGIN
                         ALTER TABLE news_items ADD COLUMN summary_cs TEXT NOT NULL DEFAULT '';
+                    EXCEPTION WHEN duplicate_column THEN NULL;
+                    END;
+                    BEGIN
+                        ALTER TABLE news_items ADD COLUMN is_european BOOLEAN NOT NULL DEFAULT FALSE;
                     EXCEPTION WHEN duplicate_column THEN NULL;
                     END;
                 END $$;
@@ -238,10 +260,12 @@ data:
                         (area_summary_id,))
             for item in items:
                 cur.execute("""
-                    INSERT INTO news_items (area_summary_id, rank, title, url, summary, summary_cs)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO news_items
+                        (area_summary_id, rank, title, url, summary, summary_cs, is_european)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (area_summary_id, item["rank"], item["title"],
-                      item["url"], item["summary"], item.get("summary_cs", "")))
+                      item["url"], item["summary"], item.get("summary_cs", ""),
+                      bool(item.get("is_european", False))))
 
     # ------------------------------------------------------------------
     # RSS retrieval — real-time, keyless, compliant
@@ -368,12 +392,17 @@ data:
                 "recent ADVANCEMENTS in AI development worldwide — model releases, NEW TOOLS "
                 "and frameworks, agentic and developer tooling, training/inference improvements, "
                 "API/SDK features, and research breakthroughs. Emphasise what is new and what "
-                "engineers can now build or use"
+                "engineers can now build or use. Every selected item MUST be substantively "
+                "about AI/ML technology itself"
             ),
             "exclude": (
                 "security vulnerabilities, CVEs, exploits, data breaches, or any security "
-                "incident — even when they involve an AI product, assistant, or coding tool; "
-                "these belong exclusively to the IT Security area"
+                "incident (even in an AI product, assistant, or coding tool) — those belong to "
+                "IT Security; AND company valuations, market-cap or share-price milestones, "
+                "funding/IPO/M&A reported as financial events, and stories about non-AI "
+                "businesses (e.g. a space or hardware company's valuation) — those belong to "
+                "Financial Markets. A European AI startup's funding round IS allowed when the "
+                "story is genuinely about its AI technology"
             ),
             "summarize": (
                 "Cite model names, parameter counts, benchmark scores (MMLU, HumanEval etc.), "
@@ -417,10 +446,12 @@ data:
             "persona": "a senior financial analyst and market strategist",
             "select": (
                 "earnings reports, IPO filings or pricings, M&A deals, central bank decisions, "
-                "significant index or stock moves, analyst upgrades/downgrades, regulatory "
-                "actions on financial institutions, and major investor activity. "
+                "significant index or stock moves, company valuations and market-cap milestones "
+                "(e.g. a company's valuation passing a major peer), analyst upgrades/downgrades, "
+                "regulatory actions on financial institutions, and major investor activity. "
                 "INCLUDE tech companies when the news is financially significant (IPO, earnings beat, "
-                "major M&A). EXCLUDE pure technology product announcements with no direct market impact."
+                "major M&A, valuation milestone). EXCLUDE pure technology product announcements with "
+                "no direct market impact."
             ),
             "summarize": (
                 "Cite specific figures: revenue, EPS, market cap change, deal value, "
@@ -443,9 +474,12 @@ data:
             "select": (
                 "diplomatic developments, geopolitical conflicts, peace negotiations, "
                 "humanitarian crises, climate agreements, military events, and major "
-                "international policy shifts. "
-                "EXCLUDE technology product news and financial market reports unless "
-                "directly tied to geopolitical consequences."
+                "international policy shifts from around the world"
+            ),
+            "exclude": (
+                "stories primarily about Europe or the EU — those belong to the Euro News "
+                "area; AND technology product news and financial market reports unless "
+                "directly tied to geopolitical consequences"
             ),
             "summarize": (
                 "Name the countries, parties, leaders, and agreements involved. "
@@ -456,9 +490,27 @@ data:
                 "Identify geopolitical fault lines, diplomatic shifts, and "
                 "humanitarian implications across the selected stories."
             ),
-            "european": (
-                "European affairs — EU policy and institutions, elections and major "
-                "developments in European countries, and Europe's role in global diplomacy"
+        },
+        "euro_news": {
+            "persona": "a senior European affairs correspondent",
+            "select": (
+                "the most important news from Europe — EU policy and institutions, national "
+                "elections and politics across European countries, European diplomacy and "
+                "security, economy and society. Favour CONTINENTAL Europe (Germany, France, "
+                "the Nordics, Benelux, Iberia, Italy, Poland, the Western Balkans and beyond), "
+                "not only the UK. This is the same kind of coverage as World News, but Europe-only"
+            ),
+            "exclude": (
+                "stories with no substantive European dimension — those belong to World News"
+            ),
+            "summarize": (
+                "Name the countries, parties, leaders, and agreements involved. "
+                "State dates, figures, or policy terms where available. "
+                "Explain implications for Europe and the EU."
+            ),
+            "synthesize": (
+                "Identify the main political, economic, and diplomatic currents across "
+                "Europe in the selected stories."
             ),
         },
     }
@@ -491,9 +543,12 @@ data:
             euro = ctx.get("european", "")
             euro_clause = (
                 f' Aim for roughly ONE of the selected articles to cover the European '
-                f'dimension of this area ({euro}). If the candidate pool contains no '
-                f'genuinely relevant European story, do not force or invent one — keep '
-                f'all five global rather than promote a weak European item.'
+                f'dimension of this area ({euro}). Favour CONTINENTAL Europe (Germany, '
+                f'France, the Nordics, Benelux, Iberia, Italy, Poland and beyond), not only '
+                f'the UK. Mark that article (and any other European one) with '
+                f'"is_european": true and all others with "is_european": false. If the '
+                f'candidate pool contains no genuinely relevant European story, do not force '
+                f'or invent one — keep all five global rather than promote a weak European item.'
             ) if euro else ''
             select_rule = (
                 'Select about 5 articles (4-6 is acceptable). '
@@ -525,10 +580,11 @@ data:
             f'{ctx["synthesize"]} '
             'Be direct — use names, numbers, and concrete facts.\n'
             '4. Translate the "summary" and "overview" fields into Czech for the _cs variants.\n\n'
-            'Return ONLY valid JSON — no markdown fences, no extra keys:\n'
+            'Return ONLY valid JSON — no markdown fences, no extra keys. Set "is_european" '
+            'to true for stories about Europe/the EU and false otherwise:\n'
             '{\n'
             '  "items": [\n'
-            '    {"rank": 1, "title": "...", "url": "...", "summary": "...", "summary_cs": "..."},\n'
+            '    {"rank": 1, "title": "...", "url": "...", "summary": "...", "summary_cs": "...", "is_european": false},\n'
             '    ...\n'
             '  ],\n'
             '  "overview": "...",\n'
@@ -595,9 +651,9 @@ data:
         prompt = "\n".join(prompt_parts) + (
             "\n\nWrite a comprehensive monthly technical summary covering major architectural "
             "shifts, key vulnerability disclosures, platform releases, and engineering trends "
-            "across all four domains. Use precise technical language. Highlight cross-domain "
-            "dependencies and converging patterns. 4-6 paragraphs: one per domain plus a "
-            "cross-cutting synthesis paragraph."
+            "across all areas. Use precise technical language. Highlight cross-domain "
+            "dependencies and converging patterns. Write one paragraph per area covered "
+            "above plus a final cross-cutting synthesis paragraph."
         )
 
         response = client.chat.completions.create(
@@ -711,10 +767,9 @@ data:
                         log.error("Still 0 items for %s after relaxed retry", area)
 
                 for item in items:
-                    # Clamp rank into the DB CHECK range (1-5) to avoid a
-                    # constraint violation aborting the insert.
+                    # Coerce rank to an int for sorting; it is renumbered 1..n below.
                     try:
-                        item["rank"] = max(1, min(5, int(item.get("rank", 1))))
+                        item["rank"] = max(1, int(item.get("rank", 1)))
                     except (TypeError, ValueError):
                         item["rank"] = 1
 
@@ -745,6 +800,28 @@ data:
                 if not items:
                     log.warning("No items left for %s after dedup/filter — skipping", area)
                     continue
+
+                # Normalise the European flag: world_news is global-only, euro_news is
+                # Europe-only (both segregated by area); the mixed areas keep the
+                # model's per-item judgement.
+                for it in items:
+                    if area == "euro_news":
+                        it["is_european"] = True
+                    elif area == "world_news":
+                        it["is_european"] = False
+                    else:
+                        it["is_european"] = bool(it.get("is_european", False))
+
+                # In the mixed areas show global stories first, then the European
+                # ones (so the frontend can draw a "Europe" divider before them).
+                # Renumber rank 1..n afterwards so the displayed order is clean.
+                if area in EUROPE_TAGGED_AREAS:
+                    items.sort(key=lambda it: (1 if it["is_european"] else 0,
+                                               it.get("rank", 99)))
+                else:
+                    items.sort(key=lambda it: it.get("rank", 99))
+                for i, it in enumerate(items, start=1):
+                    it["rank"] = i
 
                 area_summary_id = upsert_area_summary(
                     conn, digest_id, area, result["overview"], result.get("overview_cs", "")
