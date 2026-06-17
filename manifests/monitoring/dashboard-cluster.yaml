@@ -102,13 +102,72 @@ data:
           }
         },
         {
+          "id": 7,
+          "title": "CPU Reserved (Requests)",
+          "description": "Sum of pod CPU requests / node allocatable CPU. This is what the scheduler uses to place pods — not live usage. When this approaches 100% new pods stay Pending even though CPU Utilisation is low.",
+          "type": "gauge",
+          "gridPos": {
+            "h": 7,
+            "w": 4,
+            "x": 4,
+            "y": 1
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\", node!=\"\"}) / sum(kube_node_status_allocatable{resource=\"cpu\"}) * 100",
+              "legendFormat": "CPU requested %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 75
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          }
+        },
+        {
           "id": 3,
           "title": "Memory Utilisation",
           "type": "gauge",
           "gridPos": {
             "h": 7,
             "w": 4,
-            "x": 4,
+            "x": 8,
             "y": 1
           },
           "datasource": {
@@ -166,7 +225,7 @@ data:
           "gridPos": {
             "h": 3,
             "w": 4,
-            "x": 8,
+            "x": 12,
             "y": 1
           },
           "datasource": {
@@ -217,7 +276,7 @@ data:
           "gridPos": {
             "h": 4,
             "w": 4,
-            "x": 8,
+            "x": 12,
             "y": 4
           },
           "datasource": {
@@ -270,8 +329,8 @@ data:
           "type": "timeseries",
           "gridPos": {
             "h": 7,
-            "w": 12,
-            "x": 12,
+            "w": 8,
+            "x": 16,
             "y": 1
           },
           "datasource": {
@@ -281,8 +340,13 @@ data:
           "targets": [
             {
               "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
-              "legendFormat": "CPU %",
+              "legendFormat": "CPU used %",
               "refId": "A"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\", node!=\"\"}) / sum(kube_node_status_allocatable{resource=\"cpu\"}) * 100",
+              "legendFormat": "CPU reserved %",
+              "refId": "C"
             },
             {
               "expr": "(1 - avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
