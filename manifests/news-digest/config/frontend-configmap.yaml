@@ -55,7 +55,7 @@ data:
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Daily Dose of Tech</title>
       <meta name="description" content="Daily Dose of Tech — AI-curated news digest." />
-      <link rel="stylesheet" href="/style.css?v=2" />
+      <link rel="stylesheet" href="/style.css?v=3" />
     </head>
     <body>
       <header>
@@ -182,10 +182,11 @@ data:
       transition: background 0.2s, color 0.2s;
     }
 
-    /* Modern tech backdrop: a faint inline-SVG circuit motif tiled behind the
-       page, plus two soft accent "glow" gradients. Inline SVG + data: URI keeps
-       it same-origin (CSP-safe) and crisp at any resolution — no external image,
-       no binary asset. Sits on a fixed layer behind all content. */
+    /* Modern, upbeat tech backdrop: a soft multi-colour "aurora" (teal -> blue ->
+       violet glows) with a friendly inline-SVG constellation/network motif and a
+       couple of sparkle accents tiled on top. Inline SVG + data: URI keeps it
+       same-origin (CSP-safe) and crisp at any resolution — no external image, no
+       binary asset. Sits on a fixed layer behind all content. */
     body::before {
       content: "";
       position: fixed;
@@ -193,14 +194,15 @@ data:
       z-index: -1;
       pointer-events: none;
       background-image:
-        radial-gradient(1100px 560px at 85% -12%, rgba(99, 179, 237, 0.16), transparent 60%),
-        radial-gradient(900px 520px at -10% 112%, rgba(99, 179, 237, 0.10), transparent 55%),
-        url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='90'%20height='90'%20viewBox='0%200%2090%2090'%3E%3Cg%20fill='none'%20stroke='%2363b3ed'%20stroke-width='1.1'%20opacity='0.55'%3E%3Cpath%20d='M10%200%20V22%20H34'/%3E%3Cpath%20d='M90%2028%20H58%20V64'/%3E%3Cpath%20d='M0%2054%20H24%20V90'/%3E%3Cpath%20d='M45%2045%20H90'/%3E%3Cpath%20d='M45%2045%20V14'/%3E%3Cpath%20d='M45%2045%20L20%2070'/%3E%3C/g%3E%3Cg%20fill='%2363b3ed'%20opacity='0.7'%3E%3Ccircle%20cx='34'%20cy='22'%20r='2.6'/%3E%3Ccircle%20cx='58'%20cy='64'%20r='2.6'/%3E%3Ccircle%20cx='24'%20cy='54'%20r='2.6'/%3E%3Ccircle%20cx='45'%20cy='45'%20r='3.2'/%3E%3Ccircle%20cx='45'%20cy='14'%20r='2.2'/%3E%3C/g%3E%3C/svg%3E");
-      background-repeat: no-repeat, no-repeat, repeat;
-      background-size: auto, auto, 90px 90px;
-      opacity: 0.5;
+        radial-gradient(900px 520px at 6% -10%, rgba(79, 209, 197, 0.18), transparent 60%),
+        radial-gradient(1000px 560px at 100% 0%, rgba(99, 179, 237, 0.16), transparent 60%),
+        radial-gradient(950px 620px at 50% 118%, rgba(167, 139, 250, 0.14), transparent 55%),
+        url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%20viewBox='0%200%20120%20120'%3E%3Cg%20stroke='%234fd1c5'%20stroke-width='1'%20opacity='0.35'%20fill='none'%3E%3Cpath%20d='M18%2030%20L52%2018%20L96%2040'/%3E%3Cpath%20d='M52%2018%20L60%2064'/%3E%3Cpath%20d='M30%2096%20L60%2064%20L100%2092'/%3E%3C/g%3E%3Cg%20fill='%234fd1c5'%20opacity='0.55'%3E%3Ccircle%20cx='18'%20cy='30'%20r='2.4'/%3E%3Ccircle%20cx='52'%20cy='18'%20r='3'/%3E%3Ccircle%20cx='96'%20cy='40'%20r='2.4'/%3E%3Ccircle%20cx='60'%20cy='64'%20r='3.2'/%3E%3Ccircle%20cx='30'%20cy='96'%20r='2.4'/%3E%3Ccircle%20cx='100'%20cy='92'%20r='2.6'/%3E%3C/g%3E%3Cg%20stroke='%2363b3ed'%20stroke-width='1.4'%20opacity='0.5'%20stroke-linecap='round'%3E%3Cpath%20d='M88%2016%20h9%20M92.5%2011.5%20v9'/%3E%3Cpath%20d='M20%2070%20h8%20M24%2066%20v8'/%3E%3C/g%3E%3C/svg%3E");
+      background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+      background-size: auto, auto, auto, 120px 120px;
+      opacity: 0.55;
     }
-    body.light::before { opacity: 0.32; }
+    body.light::before { opacity: 0.4; }
 
     header {
       background: var(--bg-secondary);
