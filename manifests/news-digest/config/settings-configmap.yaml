@@ -10,3 +10,27 @@ data:
   OPENAI_ENDPOINT: "https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/"
   OPENAI_DEPLOYMENT: "gpt-5.4-mini"
   LOG_LEVEL: "INFO"
+
+  # --- "Listen" (text-to-speech) -------------------------------------------
+  # Keyless Speech Neural TTS on the SAME AIServices account (kind=AIServices
+  # includes Speech). The API builds SSML, POSTs to the custom-domain Speech
+  # REST endpoint with an Entra token (Bearer "aad#<SPEECH_RESOURCE_ID>#<token>",
+  # scope https://cognitiveservices.azure.com/.default), and caches the MP3 in
+  # Azure Blob so each (date,category,voice,lang) is synthesized at most once/day.
+  # Fill SPEECH_RESOURCE_ID + AUDIO_STORAGE_ACCOUNT from terraform outputs:
+  #   terraform output speech_resource_id          # → SPEECH_RESOURCE_ID
+  #   terraform output speech_endpoint             # → SPEECH_ENDPOINT
+  #   terraform output audio_storage_account_name  # → AUDIO_STORAGE_ACCOUNT
+  SPEECH_ENDPOINT: "https://ais-ddot-dev-swc-001.cognitiveservices.azure.com"
+  SPEECH_RESOURCE_ID: "/subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.CognitiveServices/accounts/ais-ddot-dev-swc-001"
+  # Standard Neural at 24kHz (cost default; HD would be audio-48khz-* + HD voices).
+  SPEECH_OUTPUT_FORMAT: "audio-24khz-48kbitrate-mono-mp3"
+  # Friendly popup names map to native per-language voices (gender x page lang).
+  # Carolina = female (Karolina on the Czech page); Jacob = male (Jakub in Czech).
+  VOICE_CAROLINA_EN: "en-US-AvaMultilingualNeural"
+  VOICE_CAROLINA_CS: "cs-CZ-VlastaNeural"
+  VOICE_JACOB_EN: "en-US-AndrewMultilingualNeural"
+  VOICE_JACOB_CS: "cs-CZ-AntoninNeural"
+  # Blob MP3 cache (container 'audio' on the existing Foundry storage account).
+  AUDIO_STORAGE_ACCOUNT: "stddotdevswc001hub"
+  AUDIO_CONTAINER: "audio"

@@ -195,5 +195,13 @@ manifests/
       Pushgateway → Prometheus (`ddot_cloudflare_*`), shown in the Grafana "Site Traffic
       — Cloudflare" row. Verify: `kubectl create job --from=cronjob/cf-analytics t -n monitoring`
       then `kubectl logs job/t -n monitoring` (should log "pushed cloudflare metrics …").
+- [ ] After `terraform apply` ("Listen"/TTS pass): fill `SPEECH_RESOURCE_ID` and
+      `AUDIO_STORAGE_ACCOUNT` in `manifests/news-digest/config/settings-configmap.yaml`
+      from `terraform output speech_resource_id` and `terraform output
+      audio_storage_account_name` (`SPEECH_ENDPOINT` is already the custom-domain URL).
+      The news-digest identity gains `Cognitive Services Speech User` + `Storage Blob
+      Data Contributor` (keyless); the `audio` blob container has a 7-day lifecycle.
+      The `/api/audio` endpoint synthesizes (SSML → Speech REST) and Blob-caches the
+      MP3 the Listen UI plays. See `roadmap.md`.
 - [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
 - [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.

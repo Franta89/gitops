@@ -6,14 +6,79 @@ metadata:
 data:
   api.py: |
     import os
+    import html
+    import logging
+    import threading
     from datetime import date
     from typing import Optional
     import psycopg2
     import psycopg2.extras
-    from fastapi import FastAPI, HTTPException
+    import requests
+    from fastapi import FastAPI, HTTPException, Query
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import Response
+    from azure.identity import WorkloadIdentityCredential
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+    from azure.core.exceptions import ResourceNotFoundError
+
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger(__name__)
 
     DATABASE_URL = os.environ["DATABASE_URL"]
+
+    # --- "Listen" (text-to-speech) config; all keyless via Workload Identity ---
+    SPEECH_ENDPOINT      = os.environ.get("SPEECH_ENDPOINT", "").rstrip("/")
+    SPEECH_RESOURCE_ID   = os.environ.get("SPEECH_RESOURCE_ID", "")
+    SPEECH_OUTPUT_FORMAT = os.environ.get("SPEECH_OUTPUT_FORMAT",
+                                          "audio-24khz-48kbitrate-mono-mp3")
+    AUDIO_STORAGE_ACCOUNT = os.environ.get("AUDIO_STORAGE_ACCOUNT", "")
+    AUDIO_CONTAINER       = os.environ.get("AUDIO_CONTAINER", "audio")
+
+    # Popup friendly name (gender) x page language -> native voice. Carolina/Jacob
+    # (Karolina/Jakub in Czech) map to the 2x2 matrix in roadmap.md and the VOICE_*
+    # keys in settings-configmap.yaml.
+    VOICES = {
+        ("f", "en"): os.environ.get("VOICE_CAROLINA_EN", "en-US-AvaMultilingualNeural"),
+        ("f", "cs"): os.environ.get("VOICE_CAROLINA_CS", "cs-CZ-VlastaNeural"),
+        ("m", "en"): os.environ.get("VOICE_JACOB_EN",    "en-US-AndrewMultilingualNeural"),
+        ("m", "cs"): os.environ.get("VOICE_JACOB_CS",    "cs-CZ-AntoninNeural"),
+    }
+    XML_LANG = {"en": "en-US", "cs": "cs-CZ"}
+
+    AREA_ORDER = ["cloud_computing", "ai_development", "it_security",
+                  "financial_markets", "world_news", "euro_news"]
+    AREA_LABELS = {
+        "en": {"cloud_computing": "Cloud Computing", "ai_development": "AI Development",
+               "it_security": "IT Security", "financial_markets": "Financial Markets",
+               "world_news": "World News", "euro_news": "Euro News"},
+        "cs": {"cloud_computing": "Cloudove technologie", "ai_development": "Vyvoj AI",
+               "it_security": "IT Bezpecnost", "financial_markets": "Financni trhy",
+               "world_news": "Svetove zpravy", "euro_news": "Evropske zpravy"},
+    }
+
+    # Lazily-created singletons (keyless): one credential shared by Speech + Blob.
+    _cred = None
+    _cred_lock = threading.Lock()
+    _blob_service = None
+
+    def _credential():
+        global _cred
+        if _cred is None:
+            with _cred_lock:
+                if _cred is None:
+                    _cred = WorkloadIdentityCredential()
+        return _cred
+
+    def _blob_client():
+        global _blob_service
+        if _blob_service is None:
+            if not AUDIO_STORAGE_ACCOUNT:
+                raise HTTPException(status_code=503,
+                                    detail="Audio cache not configured")
+            url = "https://%s.blob.core.windows.net" % AUDIO_STORAGE_ACCOUNT
+            _blob_service = BlobServiceClient(url, credential=_credential())
+        return _blob_service
 
     app = FastAPI(title="Daily Dose of Tech API")
     app.add_middleware(
@@ -193,3 +258,144 @@ data:
             }
         finally:
             conn.close()
+
+    # ------------------------------------------------------------------
+    # "Listen" — text-to-speech. Lazy synth + Blob cache: each unique
+    # (date, category, voice, lang) MP3 is synthesized at most once and reused
+    # on every later request. Keyless throughout (Workload Identity).
+    # ------------------------------------------------------------------
+
+    def _pick(en, cs, lang):
+        return cs if (lang == "cs" and cs) else en
+
+    def _area_block(cur, area_summary_id, area, overview, overview_cs, lang):
+        cur.execute("""
+            SELECT title, summary, summary_cs FROM news_items
+            WHERE area_summary_id = %s ORDER BY rank
+        """, (area_summary_id,))
+        items = cur.fetchall()
+        paras = []
+        ov = _pick(overview, overview_cs, lang)
+        if ov:
+            paras.append(ov)
+        for it in items:
+            s = _pick(it["summary"], it.get("summary_cs"), lang)
+            if it["title"] and s:
+                paras.append(it["title"] + ". " + s)
+            elif s:
+                paras.append(s)
+        return {"announce": AREA_LABELS[lang].get(area, area), "paragraphs": paras}
+
+    def _fetch_blocks(conn, d, category, lang):
+        blocks = []
+        with conn.cursor() as cur:
+            if category == "all":
+                cur.execute("""
+                    SELECT a.id, a.area, a.overview, a.overview_cs
+                    FROM area_summaries a
+                    JOIN daily_digests dd ON dd.id = a.digest_id
+                    WHERE dd.date = %s
+                """, (d,))
+                by_area = {r["area"]: r for r in cur.fetchall()}
+                for area in AREA_ORDER:
+                    r = by_area.get(area)
+                    if r:
+                        blocks.append(_area_block(cur, r["id"], r["area"],
+                                                  r["overview"], r["overview_cs"], lang))
+            else:
+                cur.execute("""
+                    SELECT a.id, a.area, a.overview, a.overview_cs
+                    FROM area_summaries a
+                    JOIN daily_digests dd ON dd.id = a.digest_id
+                    WHERE dd.date = %s AND a.area = %s
+                """, (d, category))
+                r = cur.fetchone()
+                if r:
+                    blocks.append(_area_block(cur, r["id"], r["area"],
+                                              r["overview"], r["overview_cs"], lang))
+        return blocks
+
+    def _build_ssml(blocks, voice, lang):
+        xml_lang = XML_LANG.get(lang, "en-US")
+        parts = ["<speak version='1.0' xml:lang='%s'>" % xml_lang,
+                 "<voice name='%s'>" % voice]
+        for i, b in enumerate(blocks):
+            if i > 0:
+                parts.append("<break time='700ms'/>")
+            if b["announce"]:
+                parts.append("<p>%s</p><break time='400ms'/>" % html.escape(b["announce"]))
+            for p in b["paragraphs"]:
+                parts.append("<p>%s</p><break time='350ms'/>" % html.escape(p))
+        parts.append("</voice></speak>")
+        return "".join(parts)
+
+    def _synthesize(ssml):
+        if not (SPEECH_ENDPOINT and SPEECH_RESOURCE_ID):
+            raise HTTPException(status_code=503, detail="Speech not configured")
+        token = _credential().get_token(
+            "https://cognitiveservices.azure.com/.default").token
+        resp = requests.post(
+            SPEECH_ENDPOINT + "/cognitiveservices/v1",
+            data=ssml.encode("utf-8"),
+            headers={
+                "Authorization": "Bearer aad#%s#%s" % (SPEECH_RESOURCE_ID, token),
+                "Content-Type": "application/ssml+xml",
+                "X-Microsoft-OutputFormat": SPEECH_OUTPUT_FORMAT,
+                "User-Agent": "ddot-listen",
+            },
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            log.error("Speech synth failed %s: %s", resp.status_code, resp.text[:300])
+            raise HTTPException(status_code=502, detail="Speech synthesis failed")
+        return resp.content
+
+    def _mp3_response(data):
+        return Response(content=data, media_type="audio/mpeg",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/api/audio")
+    def audio(d_str: str = Query(alias="date"),
+              category: str = Query(...),
+              voice: str = "f",
+              lang: str = "en"):
+        if category != "all" and category not in AREA_ORDER:
+            raise HTTPException(status_code=400, detail="Unknown category")
+        if voice not in ("f", "m"):
+            raise HTTPException(status_code=400, detail="voice must be f or m")
+        if lang not in ("en", "cs"):
+            raise HTTPException(status_code=400, detail="lang must be en or cs")
+        try:
+            d = date.fromisoformat(d_str)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
+
+        # Cache key = date/category/voice/lang (one MP3 per combo per day).
+        blob_name = "%s/%s/%s/%s.mp3" % (d.isoformat(), category, voice, lang)
+        blob = _blob_client().get_container_client(
+            AUDIO_CONTAINER).get_blob_client(blob_name)
+        try:
+            data = blob.download_blob().readall()
+            log.info("audio cache hit %s", blob_name)
+            return _mp3_response(data)
+        except ResourceNotFoundError:
+            pass
+
+        conn = get_conn()
+        try:
+            blocks = _fetch_blocks(conn, d, category, lang)
+        finally:
+            conn.close()
+        if not blocks or not any(b["paragraphs"] for b in blocks):
+            raise HTTPException(status_code=404,
+                                detail="No content to read for that date/category")
+
+        ssml = _build_ssml(blocks, VOICES[(voice, lang)], lang)
+        mp3 = _synthesize(ssml)
+        try:
+            blob.upload_blob(mp3, overwrite=True,
+                             content_settings=ContentSettings(content_type="audio/mpeg"))
+        except Exception as e:  # caching is best-effort; still serve the audio
+            log.warning("audio cache store failed for %s: %s", blob_name, e)
+        log.info("audio synthesized %s (%d bytes)", blob_name, len(mp3))
+        return _mp3_response(mp3)

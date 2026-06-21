@@ -22,7 +22,7 @@ data:
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'" always;
 
         location ~* \.(js|css)$ {
             root /usr/share/nginx/html;
@@ -55,7 +55,7 @@ data:
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Daily Dose of Tech</title>
       <meta name="description" content="Daily Dose of Tech — AI-curated news digest." />
-      <link rel="stylesheet" href="/style.css?v=7" />
+      <link rel="stylesheet" href="/style.css?v=8" />
     </head>
     <body>
       <header>
@@ -67,6 +67,10 @@ data:
           <div class="controls">
             <label for="datePicker" id="browseLabel"></label>
             <input type="date" id="datePicker" />
+            <span class="listen" id="listenAllControl">
+              <button id="listenAllBtn" class="listen-main"></button>
+              <button id="listenAllCaret" class="listen-caret" aria-label="Choose voice">&#9662;</button>
+            </span>
             <button id="monthlyBtn"></button>
             <button id="aboutBtn" class="about-toggle"></button>
             <button id="langBtn" class="lang-toggle"></button>
@@ -109,7 +113,27 @@ data:
         <span id="footerText"></span>
       </footer>
 
-      <script src="/app.js?v=9"></script>
+      <!-- Voice chooser (Carolina / Jacob); selection persists in localStorage. -->
+      <div id="voicePopup" class="voice-popup" style="display:none">
+        <div class="voice-popup-inner">
+          <h3 id="voicePopupTitle"></h3>
+          <button class="voice-opt" data-voice="f" id="voiceOptF"></button>
+          <button class="voice-opt" data-voice="m" id="voiceOptM"></button>
+        </div>
+      </div>
+
+      <!-- Audio player bar: play/pause, stop, seekable progress bar. -->
+      <div id="player" class="player" style="display:none">
+        <button id="playerToggle" class="player-btn" aria-label="Play/Pause">&#9208;</button>
+        <button id="playerStop" class="player-btn" aria-label="Stop">&#9209;</button>
+        <span id="playerLabel" class="player-label"></span>
+        <input type="range" id="playerSeek" class="player-seek"
+               min="0" max="100" value="0" step="0.1" aria-label="Seek" />
+        <span id="playerTime" class="player-time"></span>
+      </div>
+      <audio id="audioEl" preload="none"></audio>
+
+      <script src="/app.js?v=11"></script>
     </body>
     </html>
 
@@ -435,9 +459,103 @@ data:
       white-space: pre-wrap;
     }
 
+    /* ---- "Listen" (text-to-speech) ---- */
+
+    /* Row holding the Deep Dive + Listen controls at the foot of each card. */
+    .card-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+    /* Split button: main "Listen" + caret that opens the voice chooser. */
+    .listen { display: inline-flex; }
+    .listen-main {
+      background: var(--btn-muted);
+      color: var(--text-primary);
+      border-radius: 6px 0 0 6px;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.7rem;
+    }
+    .listen-caret {
+      background: var(--btn-muted);
+      color: var(--text-primary);
+      border-left: 1px solid var(--border-light);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.55rem;
+    }
+    .listen-main:hover, .listen-caret:hover { background: var(--btn-muted-hover); }
+    .listen-main.playing { background: var(--btn-green); color: #fff; }
+    .listen-main.playing:hover { background: var(--btn-green-hover); }
+
+    /* Voice chooser modal. */
+    .voice-popup {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.5);
+    }
+    .voice-popup-inner {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      min-width: 240px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    }
+    .voice-popup-inner h3 { font-size: 0.95rem; color: var(--accent); margin-bottom: 0.25rem; }
+    .voice-opt {
+      background: var(--btn-muted);
+      color: var(--text-primary);
+      text-align: left;
+      padding: 0.55rem 0.8rem;
+    }
+    .voice-opt:hover { background: var(--btn-muted-hover); }
+    .voice-opt.selected { background: var(--btn-primary); color: #fff; }
+
+    /* Fixed player bar pinned to the bottom of the viewport. */
+    .player {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0.6rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 10px 10px 0 0;
+      box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.3);
+    }
+    .player-btn {
+      background: var(--btn-muted);
+      color: var(--text-primary);
+      padding: 0.3rem 0.6rem;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .player-btn:hover { background: var(--btn-muted-hover); }
+    .player-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      max-width: 16ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-seek { flex: 1; accent-color: var(--accent); cursor: pointer; min-width: 80px; }
+    .player-time { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; min-width: 9ch; text-align: right; }
+
     @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; }
       .header-inner { flex-direction: column; align-items: flex-start; }
+      .player-label { max-width: 8ch; }
     }
 
   app.js: |
@@ -525,7 +643,15 @@ data:
           "Purpose: dev/test sandbox -- Kubernetes and Azure AI services integration"
         ],
         aboutFooter:    "Content is AI-generated and provided for informational purposes only. Always verify news with primary sources.",
-        archTitle:      "Architecture"
+        archTitle:      "Architecture",
+        listen:         "Listen",
+        listenAll:      "Listen all",
+        listenAllLabel: "All areas",
+        chooseVoice:    "Choose voice",
+        voiceFemale:    "Carolina (female)",
+        voiceMale:      "Jacob (male)",
+        listenLoading:  "Synthesizing audio...",
+        listenError:    "Audio unavailable"
       },
       cs: {
         browse:         "Datum:",
@@ -562,7 +688,15 @@ data:
           "Ucel: vyvojovy sandbox -- integrace Kubernetes a Azure AI sluzeb"
         ],
         aboutFooter:    "Obsah je generovan umelou inteligenci a slouzi pouze k informacnim ucelum. Vzdy overujte zpravy z primarnich zdroju.",
-        archTitle:      "Architektura"
+        archTitle:      "Architektura",
+        listen:         "Poslech",
+        listenAll:      "Prehrat vse",
+        listenAllLabel: "Vsechny oblasti",
+        chooseVoice:    "Vyber hlasu",
+        voiceFemale:    "Karolína (zensky)",
+        voiceMale:      "Jakub (muzsky)",
+        listenLoading:  "Generuji zvuk...",
+        listenError:    "Zvuk neni dostupny"
       }
     };
 
@@ -610,6 +744,11 @@ data:
 
       var aboutVisible = document.getElementById("aboutPanel").style.display !== "none";
       document.getElementById("aboutBtn").textContent = aboutVisible ? t.aboutClose : t.about;
+
+      document.getElementById("listenAllBtn").innerHTML  = "&#128266; " + escHtml(t.listenAll);
+      document.getElementById("voicePopupTitle").textContent = t.chooseVoice;
+      document.getElementById("voiceOptF").textContent   = t.voiceFemale;
+      document.getElementById("voiceOptM").textContent   = t.voiceMale;
 
       document.getElementById("aboutTitle").textContent  = t.aboutTitle;
       document.getElementById("aboutDesc1").textContent  = t.aboutDesc1;
@@ -695,11 +834,24 @@ data:
           '<span class="card-badge">' + badge + '</span>' +
         '</div>' +
         '<p class="card-overview">' + escHtml(overview) + '</p>' +
-        '<button class="deep-dive-btn" data-area="' + key + '">' + T[lang].deepDive + '</button>' +
+        '<div class="card-actions">' +
+          '<button class="deep-dive-btn" data-area="' + key + '">' + T[lang].deepDive + '</button>' +
+          '<span class="listen">' +
+            '<button class="listen-main">&#128266; ' + escHtml(T[lang].listen) + '</button>' +
+            '<button class="listen-caret" aria-label="' + escHtml(T[lang].chooseVoice) + '">&#9662;</button>' +
+          '</span>' +
+        '</div>' +
         '<div class="articles" id="articles-' + key + '"></div>';
 
       var btn = card.querySelector(".deep-dive-btn");
       var articlesEl = card.querySelector(".articles");
+
+      card.querySelector(".listen-main").addEventListener("click", function() {
+        playCategory(key, label);
+      });
+      card.querySelector(".listen-caret").addEventListener("click", function() {
+        openVoicePopup(key, label);
+      });
 
       if (area.items && area.items.length > 0) {
         renderArticles(articlesEl, area.items);
@@ -866,6 +1018,111 @@ data:
     document.querySelector("h1").addEventListener("click", function() {
       closeAbout();
       loadDigest(null);
+    });
+
+    // ---- Listen (text-to-speech) ----
+    // The Listen split button plays the persisted voice; the caret opens the
+    // Carolina/Jacob chooser. Audio comes from /api/audio (synthesized once per
+    // date/category/voice/lang, then cached). lang follows the page toggle.
+    var voice = localStorage.getItem("ddot-voice") || "f";
+    var audioEl = document.getElementById("audioEl");
+    var playingCategory = null;
+
+    function audioUrl(category) {
+      return "/api/audio?date=" + encodeURIComponent(currentDate) +
+             "&category=" + encodeURIComponent(category) +
+             "&voice=" + voice + "&lang=" + lang;
+    }
+
+    function fmtTime(s) {
+      if (!isFinite(s) || s < 0) return "0:00";
+      var m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return m + ":" + (sec < 10 ? "0" : "") + sec;
+    }
+
+    function setToggleIcon(playing) {
+      document.getElementById("playerToggle").innerHTML = playing ? "&#9208;" : "&#9654;";
+    }
+
+    function updateTime() {
+      var cur = audioEl.currentTime || 0, dur = audioEl.duration || 0;
+      if (dur > 0) document.getElementById("playerSeek").value = (cur / dur) * 100;
+      document.getElementById("playerTime").textContent = fmtTime(cur) + " / " + fmtTime(dur);
+    }
+
+    // Only one stream at a time: starting a new category replaces the current src.
+    function playCategory(category, label) {
+      if (!currentDate) return;
+      playingCategory = category;
+      document.getElementById("playerLabel").textContent = label;
+      document.getElementById("playerTime").textContent  = T[lang].listenLoading;
+      document.getElementById("playerSeek").value = 0;
+      document.getElementById("player").style.display = "flex";
+      audioEl.src = audioUrl(category);
+      audioEl.play().catch(function() {});
+    }
+
+    function stopAudio() {
+      audioEl.pause();
+      audioEl.removeAttribute("src");
+      audioEl.load();
+      playingCategory = null;
+      document.getElementById("player").style.display = "none";
+    }
+
+    audioEl.addEventListener("loadedmetadata", updateTime);
+    audioEl.addEventListener("timeupdate", updateTime);
+    audioEl.addEventListener("play",  function() { setToggleIcon(true); });
+    audioEl.addEventListener("pause", function() { setToggleIcon(false); });
+    audioEl.addEventListener("ended", function() { setToggleIcon(false); });
+    audioEl.addEventListener("error", function() {
+      if (playingCategory !== null) {
+        document.getElementById("playerTime").textContent = T[lang].listenError;
+      }
+    });
+
+    document.getElementById("playerToggle").addEventListener("click", function() {
+      if (audioEl.paused) { audioEl.play().catch(function() {}); }
+      else { audioEl.pause(); }
+    });
+    document.getElementById("playerStop").addEventListener("click", stopAudio);
+    document.getElementById("playerSeek").addEventListener("input", function(e) {
+      var dur = audioEl.duration || 0;
+      if (dur > 0) audioEl.currentTime = (parseFloat(e.target.value) / 100) * dur;
+    });
+
+    function openVoicePopup(category, label) {
+      var popup = document.getElementById("voicePopup");
+      popup.dataset.category = category || "";
+      popup.dataset.label = label || "";
+      document.getElementById("voiceOptF").classList.toggle("selected", voice === "f");
+      document.getElementById("voiceOptM").classList.toggle("selected", voice === "m");
+      popup.style.display = "flex";
+    }
+    function closeVoicePopup() {
+      document.getElementById("voicePopup").style.display = "none";
+    }
+    document.getElementById("voicePopup").addEventListener("click", function(e) {
+      if (e.target.id === "voicePopup") closeVoicePopup();  // click backdrop to dismiss
+    });
+    document.querySelectorAll("#voicePopup .voice-opt").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        voice = btn.dataset.voice;                 // persists across both languages;
+        localStorage.setItem("ddot-voice", voice); // maps to same-gender native voice
+        var popup = document.getElementById("voicePopup");
+        var category = popup.dataset.category;
+        var label = popup.dataset.label;
+        closeVoicePopup();
+        if (category) playCategory(category, label);
+      });
+    });
+
+    document.getElementById("listenAllBtn").addEventListener("click", function() {
+      closeAbout();
+      playCategory("all", T[lang].listenAllLabel);
+    });
+    document.getElementById("listenAllCaret").addEventListener("click", function() {
+      openVoicePopup("all", T[lang].listenAllLabel);
     });
 
     applyTheme();

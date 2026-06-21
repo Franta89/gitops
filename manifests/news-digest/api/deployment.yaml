@@ -32,7 +32,10 @@ spec:
               pip install --user --quiet \
                 "fastapi~=0.115.6" \
                 "uvicorn~=0.32.1" \
-                "psycopg2-binary~=2.9.10" &&
+                "psycopg2-binary~=2.9.10" \
+                "requests~=2.32.3" \
+                "azure-identity~=1.19.0" \
+                "azure-storage-blob~=12.24.0" &&
               python -m uvicorn api:app --host 0.0.0.0 --port 8000
           securityContext:
             allowPrivilegeEscalation: false

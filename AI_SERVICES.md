@@ -1,9 +1,17 @@
 # AI Services
 
 How the **Daily Dose of Tech** (ddot) app uses Azure AI in this cluster: which
-service, how it is configured, how it authenticates, and where it sits in the
-overall pipeline. This is the AI counterpart to [`SECURITY.md`](SECURITY.md) and
-[`MONITORING.md`](MONITORING.md).
+services, how they are configured, how they authenticate, and where they sit in
+the overall pipeline. This is the AI counterpart to [`SECURITY.md`](SECURITY.md)
+and [`MONITORING.md`](MONITORING.md).
+
+The app uses **two** Azure AI capabilities, both on the **same** AI Services
+account and both **keyless** (Workload Identity):
+
+1. **Text — GPT-5.4-mini** (Azure OpenAI v1 API): the daily aggregator selects,
+   summarises and translates the news.
+2. **Speech — Neural text-to-speech** (the "Listen" feature): the API reads a
+   digest aloud on demand, per category or for the whole page, in English or Czech.
 
 > **Dev/test sandbox only — NOT production.** The cluster, the AI Services
 > account, the Key Vault and the managed identity are all provisioned by the
@@ -13,11 +21,14 @@ overall pipeline. This is the AI counterpart to [`SECURITY.md`](SECURITY.md) and
 
 | Item | Value |
 | --- | --- |
-| Service | **Azure AI Services** account (`ais-ddot-dev-swc-001`) |
-| Model / deployment | **GPT-5.4-mini** (`gpt-5.4-mini`) |
-| API surface | Azure OpenAI **v1 API** — `https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/` |
-| Client library | stock `openai` Python SDK (`openai~=1.57.4`), `OpenAI` class |
-| Auth | Azure **Workload Identity** (keyless) → Entra ID bearer token |
+| Service | **Azure AI Services** account (`ais-ddot-dev-swc-001`) — hosts **both** the OpenAI model and Speech |
+| Text model / deployment | **GPT-5.4-mini** (`gpt-5.4-mini`) |
+| Text API surface | Azure OpenAI **v1 API** — `https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/` |
+| Text client library | stock `openai` Python SDK (`openai~=1.57.4`), `OpenAI` class |
+| Speech ("Listen") | **Neural text-to-speech**, Standard Neural tier, native EN + CS voices |
+| Speech API surface | TTS **REST** — `https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/cognitiveservices/v1` |
+| Auth (both) | Azure **Workload Identity** (keyless) → Entra ID bearer token |
+| MP3 cache | Azure **Blob** container `audio` (lazy synth, one MP3 per combo per day) |
 | Provisioned but NOT in the inference path | AI Foundry Hub |
 
 The AI Foundry Hub exists (Terraform creates it) but the app **does not** call
@@ -76,9 +87,84 @@ Euro News. Categorisation depends on what a story is **about** (entity routing +
 the classifier call), not which feed carried it. Full prompt and routing rationale
 live in `aggregator.py` and the project `README.md`.
 
+## Listen — text-to-speech
+
+The **Listen** feature reads a digest aloud. Unlike the GPT path (which runs in the
+aggregator CronJobs), Speech is driven by the **FastAPI backend** on demand: a
+**Listen** button on each category card reads that category, and a global **Listen
+all** button in the header reads every area. A small player bar gives play/pause,
+stop and a seekable progress bar.
+
+### Voices (friendly name × page language)
+
+A popup offers two voices; the friendly name maps to a **native** voice for the
+active page language (the EN/CZ toggle picks the language, the popup picks the
+gender). The gender choice persists in `localStorage` across both languages.
+
+| Popup option | English page | Czech page (shown as) |
+| --- | --- | --- |
+| **Carolina** — female (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` (**Karolína**) |
+| **Jacob** — male | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` (**Jakub**) |
+
+The friendly names are display-only labels; the spoken audio uses the native voice
+short-names above. Voice short-names are configurable via the `VOICE_CAROLINA_*` /
+`VOICE_JACOB_*` keys in `settings-configmap.yaml`.
+
+### How a request works
+
+```text
+GET /api/audio?date=<YYYY-MM-DD>&category=<slug|all>&voice=<f|m>&lang=<en|cs>
+   │
+   ├─ cache key = date/category/voice/lang  → Azure Blob container "audio"
+   │     • HIT  → stream the stored MP3 (no synthesis, no cost)
+   │     • MISS → ↓
+   ├─ read the digest text (overview + per-article summaries) from PostgreSQL,
+   │     in the requested language (summary_cs when lang=cs, else English)
+   ├─ build SSML (announce the area, <break>s between articles, xml:lang)
+   ├─ POST SSML to the Speech REST endpoint  →  MP3 bytes
+   ├─ store the MP3 in Blob (best-effort), then
+   └─ stream the MP3 (Content-Type: audio/mpeg)
+```
+
+Because the digest is **static for the day**, each unique `(date, category, voice,
+lang)` is synthesized **at most once** and reused on every later click. A Blob
+lifecycle rule deletes cached audio after **7 days**. The API reads **summaries
+only**, never full article bodies.
+
+### Authentication & endpoint (keyless)
+
+Same Workload Identity as the GPT path, but the Speech REST API needs a specific
+bearer format. The pod mints an Entra token (scope
+`https://cognitiveservices.azure.com/.default`, the same scope as OpenAI) and sends:
+
+```text
+POST https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/cognitiveservices/v1
+Authorization: Bearer aad#<SPEECH_RESOURCE_ID>#<entra-token>
+Content-Type: application/ssml+xml
+X-Microsoft-OutputFormat: audio-24khz-48kbitrate-mono-mp3
+```
+
+`SPEECH_RESOURCE_ID` is the ARM resource ID of the AI Services account (the Speech
+REST API requires the `aad#<resourceId>#<token>` form, not a plain bearer token).
+The same `WorkloadIdentityCredential` also authenticates **Blob** access. Two extra
+data-plane roles are granted to the news-digest identity in `infra-terraform`
+(`modules/azure-ai`): **Cognitive Services Speech User** (on the AI Services
+account) and **Storage Blob Data Contributor** (on the storage account holding the
+`audio` container). Still no keys anywhere.
+
+### Cost
+
+Standard Neural is billed per character ($15 / 1M chars). A digest is ≈ 2k chars per
+category; worst case (every category + "all", both voices, both languages, daily,
+no cache) ≈ 2.4M chars/month ≈ ~$36. **Lazy caching is the main lever** — each combo
+is synthesized once per day only when actually played, so real spend is typically
+well under $10/mo. Cost defaults chosen for the project's monthly budget alert:
+Standard Neural (not HD), summaries only, on-demand single voice/language (no
+fan-out). Full rationale and phases are in `roadmap.md`.
+
 ## Configuration
 
-Two settings drive the AI path, both in
+The text (GPT) path is driven by two settings, both in
 [`manifests/news-digest/config/settings-configmap.yaml`](manifests/news-digest/config/settings-configmap.yaml)
 (`ConfigMap` `news-digest-settings`), injected into the aggregator pods via
 `envFrom`:
@@ -95,6 +181,14 @@ OPENAI_DEPLOYMENT: "gpt-5.4-mini"
 Both values come from Terraform outputs after `terraform apply` in
 `infra-terraform` (see the TODO checklist in [`CLAUDE.md`](CLAUDE.md)). There is
 **no** `OPENAI_API_VERSION` and **no** AI API key — by design.
+
+The **Speech ("Listen")** path adds, in the same ConfigMap (consumed by the API
+pod): `SPEECH_ENDPOINT` (custom-domain Speech URL), `SPEECH_RESOURCE_ID` (ARM id
+for the `aad#…` bearer token), `SPEECH_OUTPUT_FORMAT` (default
+`audio-24khz-48kbitrate-mono-mp3`), the four `VOICE_CAROLINA_*` / `VOICE_JACOB_*`
+voice short-names, and `AUDIO_STORAGE_ACCOUNT` / `AUDIO_CONTAINER` for the MP3
+cache. `SPEECH_RESOURCE_ID` and `AUDIO_STORAGE_ACCOUNT` are filled from
+`terraform output speech_resource_id` / `audio_storage_account_name`.
 
 ## Authentication (keyless, Workload Identity)
 

@@ -5,7 +5,13 @@ aloud, per category and for the whole page, with a male and a female natural voi
 plus play/pause/stop and a progress bar. Use the latest Azure AI Foundry speech
 offering, but **keep cost low** (the project has a monthly budget alert).
 
-> Status: planning only — nothing implemented yet.
+> Status: **implemented** (lazy synth + Blob cache, EN/CS native voices,
+> per-card + global Listen, voice popup, play/pause/stop + seek bar). Decisions
+> taken: **Azure Blob** cache + **Standard Neural** voices. After `terraform apply`
+> fill `SPEECH_RESOURCE_ID` and `AUDIO_STORAGE_ACCOUNT` in
+> `manifests/news-digest/config/settings-configmap.yaml` (see TF outputs
+> `speech_resource_id`, `speech_endpoint`, `audio_storage_account_name`). Phase 5
+> (pre-generation / HD voices) remains optional/future.
 
 ---
 
@@ -14,9 +20,9 @@ offering, but **keep cost low** (the project has a monthly budget alert).
 - A **Listen** button on **each category card** (Cloud Computing, AI Development,
   IT Security, Financial Markets, World News) → reads *that* category's summary.
 - A **Listen** button at the **top of the page** → reads **all** categories.
-- Clicking Listen opens a **popup with two voice options**, labelled **Aadita**
-  (female) and **Mark** (male). If the user doesn't pick, it plays in the **default
-  voice (Aadita)**.
+- Clicking Listen opens a **popup with two voice options**, labelled **Carolina**
+  (female) and **Jacob** (male) — shown as **Karolína** and **Jakub** on the Czech
+  page. If the user doesn't pick, it plays in the **default voice (Carolina)**.
 - Both voices must **sound natural/pleasant**.
 - While reading: a **progress bar**; can be **paused / resumed / stopped** anytime.
 - The Listen button **follows the page language toggle**: when the page is in
@@ -42,11 +48,12 @@ the voice is a 2×2 matrix:
 
 | Popup option | English page | Czech page |
 | --- | --- | --- |
-| **Aadita** — female (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` |
-| **Mark** — male | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` |
+| **Carolina** — female (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` |
+| **Jacob** — male | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` |
 
-The popup shows the friendly names **Aadita** and **Mark**; each maps to the
-gender-appropriate native voice for the active page language (above).
+The popup shows the friendly names **Carolina** and **Jacob** (localised to
+**Karolína** and **Jakub** on the Czech page); each maps to the gender-appropriate
+native voice for the active page language (above).
 
 Using native `cs-CZ-*` voices for Czech gives the most natural Czech pronunciation
 (the user explicitly wants Czech voices on the Czech page). The frontend passes the
