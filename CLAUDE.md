@@ -158,7 +158,7 @@ manifests/
     config/                   ConfigMaps: settings, scripts (aggregator.py, api.py), frontend HTML/CSS/JS
     api/                      FastAPI Deployment + Service
     frontend/                 nginx Deployment + Service
-    cronjobs/                 daily (06:10 CET) + monthly (1st of month)
+    cronjobs/                 daily (06:30) + monthly (1st) + audio-warm (07:10, pre-gen Listen audio)
 ```
 
 ## TODO for Claude Code

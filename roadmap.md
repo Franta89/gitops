@@ -5,13 +5,15 @@ aloud, per category and for the whole page, with a male and a female natural voi
 plus play/pause/stop and a progress bar. Use the latest Azure AI Foundry speech
 offering, but **keep cost low** (the project has a monthly budget alert).
 
-> Status: **implemented** (lazy synth + Blob cache, EN/CS native voices,
-> per-card + global Listen, voice popup, play/pause/stop + seek bar). Decisions
-> taken: **Azure Blob** cache + **Standard Neural** voices. After `terraform apply`
-> fill `SPEECH_RESOURCE_ID` and `AUDIO_STORAGE_ACCOUNT` in
-> `manifests/news-digest/config/settings-configmap.yaml` (see TF outputs
-> `speech_resource_id`, `speech_endpoint`, `audio_storage_account_name`). Phase 5
-> (pre-generation / HD voices) remains optional/future.
+> Status: **implemented & deployed** (Blob cache, EN/CS native voices, per-card +
+> global Listen, voice popup, play/pause/stop + seek bar). Decisions taken:
+> **Azure Blob** cache + **Standard Neural** voices. **Pre-generation is live**: a
+> daily warm-up CronJob (`news-digest-audio-warm`, 07:10 Europe/Prague, after the
+> 06:30 digest) pre-synthesizes the **default voice (Carolina) in EN + CS** so the
+> first click is instant; the male voice (Jacob) stays lazy. Per-area clips are the
+> cache unit and **"all" is assembled from them** (no extra synthesis). HD voices
+> remain optional/future. The two settings placeholders are filled from TF outputs
+> `speech_resource_id` / `audio_storage_account_name`.
 
 ---
 

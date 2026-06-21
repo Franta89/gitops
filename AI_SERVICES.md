@@ -28,7 +28,7 @@ account and both **keyless** (Workload Identity):
 | Speech ("Listen") | **Neural text-to-speech**, Standard Neural tier, native EN + CS voices |
 | Speech API surface | TTS **REST** — `https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/tts/cognitiveservices/v1` |
 | Auth (both) | Azure **Workload Identity** (keyless) → Entra ID bearer token |
-| MP3 cache | Azure **Blob** container `audio` (lazy synth, one MP3 per combo per day) |
+| MP3 cache | Azure **Blob** container `audio` (per-area clip per day; pre-generated for the default voice, lazy otherwise) |
 | Provisioned but NOT in the inference path | AI Foundry Hub |
 
 The AI Foundry Hub exists (Terraform creates it) but the app **does not** call
@@ -112,24 +112,45 @@ short-names above. Voice short-names are configurable via the `VOICE_CAROLINA_*`
 
 ### How a request works
 
+The **per-area** clip is the unit of caching and synthesis. A category button plays
+its area's clip directly; **"all" is the six area clips concatenated** (CBR MP3
+frames join cleanly), so the whole-page reading adds **no extra synthesis** once the
+areas exist — and never sends one oversized SSML (which made the Speech stream end
+prematurely).
+
 ```text
 GET /api/audio?date=<YYYY-MM-DD>&category=<slug|all>&voice=<f|m>&lang=<en|cs>
    │
-   ├─ cache key = date/category/voice/lang  → Azure Blob container "audio"
-   │     • HIT  → stream the stored MP3 (no synthesis, no cost)
-   │     • MISS → ↓
-   ├─ read the digest text (overview + per-article summaries) from PostgreSQL,
-   │     in the requested language (summary_cs when lang=cs, else English)
-   ├─ build SSML (announce the area, <break>s between articles, xml:lang)
-   ├─ POST SSML to the Speech REST endpoint  →  MP3 bytes
-   ├─ store the MP3 in Blob (best-effort), then
-   └─ stream the MP3 (Content-Type: audio/mpeg)
+   ├─ category = one area:
+   │     blob date/<area>/voice/lang.mp3
+   │       • HIT  → stream it (no synthesis)
+   │       • MISS → read that area's text (overview + per-article summaries) from
+   │                PostgreSQL in the requested language → build SSML (announce the
+   │                area, <break>s, xml:lang) → POST to Speech REST → store → stream
+   │
+   └─ category = all:
+         blob date/all/voice/lang.mp3
+           • HIT  → stream it
+           • MISS → fetch the six area clips (each cached-or-synthesized, in
+                    parallel), concatenate, store the assembled MP3, stream
 ```
 
-Because the digest is **static for the day**, each unique `(date, category, voice,
-lang)` is synthesized **at most once** and reused on every later click. A Blob
+Because the digest is **static for the day**, each area clip is synthesized **at
+most once** per `(date, voice, lang)` and reused on every later click. A Blob
 lifecycle rule deletes cached audio after **7 days**. The API reads **summaries
 only**, never full article bodies.
+
+### Pre-generation (instant first play)
+
+To remove first-play latency, a daily **warm-up CronJob**
+(`news-digest-audio-warm`, **07:10 Europe/Prague**, right after the 06:30 digest)
+calls `/api/audio` for the **default voice (Carolina) in EN + CS** — the six areas
+then `all` — so the cache is hot before anyone clicks. It reuses the API's own
+synthesis path (it just makes HTTP calls; the API holds the identity), so the job
+needs **no Azure credentials**. The **male voice (Jacob) stays lazy** — synthesized
+on first play — to keep recurring TTS cost down (audio is long: ~4–5 min per area,
+so each pre-warmed voice×language set is a real cost). Anything not pre-warmed
+(other dates, the male voice) still works on demand with first-play latency.
 
 ### Authentication & endpoint (keyless)
 
