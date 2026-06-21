@@ -17,7 +17,7 @@ data:
     import psycopg2
     import psycopg2.extras
     import requests
-    from fastapi import FastAPI, HTTPException, Query
+    from fastapi import FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import Response
     from azure.identity import WorkloadIdentityCredential
@@ -445,12 +445,44 @@ data:
         except ValueError:
             raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
 
-    def _mp3_response(data):
-        return Response(content=data, media_type="audio/mpeg",
-                        headers={"Cache-Control": "public, max-age=86400"})
+    def _parse_range(range_header, total):
+        # Returns (start, end) inclusive for a single "bytes=" range, or None.
+        if not range_header or "=" not in range_header:
+            return None
+        try:
+            units, rng = range_header.split("=", 1)
+            if units.strip() != "bytes" or "," in rng:
+                return None
+            start_s, end_s = rng.split("-", 1)
+            if start_s == "":                       # suffix: last N bytes
+                n = int(end_s)
+                start, end = max(0, total - n), total - 1
+            else:
+                start = int(start_s)
+                end = int(end_s) if end_s else total - 1
+        except (ValueError, AttributeError):
+            return None
+        end = min(end, total - 1)
+        if start > end or start < 0:
+            return None
+        return start, end
+
+    # Serve audio with HTTP Range support so the player can seek to any position
+    # (a plain 200 only lets the browser seek within what it has already buffered).
+    def _mp3_response(data, request):
+        total = len(data)
+        headers = {"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=86400"}
+        rng = _parse_range(request.headers.get("range"), total)
+        if rng:
+            start, end = rng
+            headers["Content-Range"] = "bytes %d-%d/%d" % (start, end, total)
+            return Response(content=data[start:end + 1], status_code=206,
+                            media_type="audio/mpeg", headers=headers)
+        return Response(content=data, media_type="audio/mpeg", headers=headers)
 
     @app.get("/api/audio")
-    def audio(d_str: str = Query(alias="date"),
+    def audio(request: Request,
+              d_str: str = Query(alias="date"),
               category: str = Query(...),
               voice: str = "f",
               lang: str = "en"):
@@ -459,7 +491,7 @@ data:
         if mp3 is None:
             raise HTTPException(status_code=404,
                                 detail="No content to read for that date/category")
-        return _mp3_response(mp3)
+        return _mp3_response(mp3, request)
 
     # Milestones for the player: overview + per-article start times (seconds) and
     # labels, plus total duration. Reads the cached manifest only (no MP3 download)
