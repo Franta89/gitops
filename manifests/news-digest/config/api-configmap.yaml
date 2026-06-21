@@ -335,7 +335,7 @@ data:
         token = _credential().get_token(
             "https://cognitiveservices.azure.com/.default").token
         resp = requests.post(
-            SPEECH_ENDPOINT + "/cognitiveservices/v1",
+            SPEECH_ENDPOINT + "/tts/cognitiveservices/v1",
             data=ssml.encode("utf-8"),
             headers={
                 "Authorization": "Bearer aad#%s#%s" % (SPEECH_RESOURCE_ID, token),

@@ -26,7 +26,7 @@ account and both **keyless** (Workload Identity):
 | Text API surface | Azure OpenAI **v1 API** — `https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/` |
 | Text client library | stock `openai` Python SDK (`openai~=1.57.4`), `OpenAI` class |
 | Speech ("Listen") | **Neural text-to-speech**, Standard Neural tier, native EN + CS voices |
-| Speech API surface | TTS **REST** — `https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/cognitiveservices/v1` |
+| Speech API surface | TTS **REST** — `https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/tts/cognitiveservices/v1` |
 | Auth (both) | Azure **Workload Identity** (keyless) → Entra ID bearer token |
 | MP3 cache | Azure **Blob** container `audio` (lazy synth, one MP3 per combo per day) |
 | Provisioned but NOT in the inference path | AI Foundry Hub |
@@ -138,7 +138,7 @@ bearer format. The pod mints an Entra token (scope
 `https://cognitiveservices.azure.com/.default`, the same scope as OpenAI) and sends:
 
 ```text
-POST https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/cognitiveservices/v1
+POST https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/tts/cognitiveservices/v1
 Authorization: Bearer aad#<SPEECH_RESOURCE_ID>#<entra-token>
 Content-Type: application/ssml+xml
 X-Microsoft-OutputFormat: audio-24khz-48kbitrate-mono-mp3
