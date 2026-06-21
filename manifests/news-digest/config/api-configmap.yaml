@@ -9,6 +9,7 @@ data:
     import html
     import logging
     import threading
+    from concurrent.futures import ThreadPoolExecutor
     from datetime import date
     from typing import Optional
     import psycopg2
@@ -343,12 +344,24 @@ data:
                 "X-Microsoft-OutputFormat": SPEECH_OUTPUT_FORMAT,
                 "User-Agent": "ddot-listen",
             },
-            timeout=60,
+            timeout=120,
         )
         if resp.status_code != 200:
             log.error("Speech synth failed %s: %s", resp.status_code, resp.text[:300])
             raise HTTPException(status_code=502, detail="Speech synthesis failed")
         return resp.content
+
+    # Synthesize per AREA, never as one giant request: a whole-page "all" SSML is
+    # long enough that the Speech stream ends prematurely. Each area is a small,
+    # reliable call (~10s); we run them in parallel and concatenate the MP3 frames
+    # (CBR ADTS concatenates cleanly and plays as one stream). One block -> one call.
+    def _synthesize_audio(blocks, voice, lang):
+        if len(blocks) <= 1:
+            return _synthesize(_build_ssml(blocks, voice, lang))
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            parts = list(ex.map(
+                lambda b: _synthesize(_build_ssml([b], voice, lang)), blocks))
+        return b"".join(parts)
 
     def _mp3_response(data):
         return Response(content=data, media_type="audio/mpeg",
@@ -390,8 +403,7 @@ data:
             raise HTTPException(status_code=404,
                                 detail="No content to read for that date/category")
 
-        ssml = _build_ssml(blocks, VOICES[(voice, lang)], lang)
-        mp3 = _synthesize(ssml)
+        mp3 = _synthesize_audio(blocks, VOICES[(voice, lang)], lang)
         try:
             blob.upload_blob(mp3, overwrite=True,
                              content_settings=ContentSettings(content_type="audio/mpeg"))

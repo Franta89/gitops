@@ -38,6 +38,9 @@ data:
             proxy_pass http://api-svc:8000/api/;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
+            # A cold "Listen all" synthesizes 6 areas before returning; allow time.
+            proxy_read_timeout 180s;
+            proxy_send_timeout 180s;
         }
     }
 ---
