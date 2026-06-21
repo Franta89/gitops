@@ -287,46 +287,29 @@ data:
                 paras.append(s)
         return {"announce": AREA_LABELS[lang].get(area, area), "paragraphs": paras}
 
-    def _fetch_blocks(conn, d, category, lang):
-        blocks = []
+    def _fetch_block(conn, d, area, lang):
+        """One area's read-aloud block (announce + paragraphs), or None."""
         with conn.cursor() as cur:
-            if category == "all":
-                cur.execute("""
-                    SELECT a.id, a.area, a.overview, a.overview_cs
-                    FROM area_summaries a
-                    JOIN daily_digests dd ON dd.id = a.digest_id
-                    WHERE dd.date = %s
-                """, (d,))
-                by_area = {r["area"]: r for r in cur.fetchall()}
-                for area in AREA_ORDER:
-                    r = by_area.get(area)
-                    if r:
-                        blocks.append(_area_block(cur, r["id"], r["area"],
-                                                  r["overview"], r["overview_cs"], lang))
-            else:
-                cur.execute("""
-                    SELECT a.id, a.area, a.overview, a.overview_cs
-                    FROM area_summaries a
-                    JOIN daily_digests dd ON dd.id = a.digest_id
-                    WHERE dd.date = %s AND a.area = %s
-                """, (d, category))
-                r = cur.fetchone()
-                if r:
-                    blocks.append(_area_block(cur, r["id"], r["area"],
-                                              r["overview"], r["overview_cs"], lang))
-        return blocks
+            cur.execute("""
+                SELECT a.id, a.area, a.overview, a.overview_cs
+                FROM area_summaries a
+                JOIN daily_digests dd ON dd.id = a.digest_id
+                WHERE dd.date = %s AND a.area = %s
+            """, (d, area))
+            r = cur.fetchone()
+            if not r:
+                return None
+            return _area_block(cur, r["id"], r["area"],
+                               r["overview"], r["overview_cs"], lang)
 
-    def _build_ssml(blocks, voice, lang):
+    def _build_ssml(block, voice, lang):
         xml_lang = XML_LANG.get(lang, "en-US")
         parts = ["<speak version='1.0' xml:lang='%s'>" % xml_lang,
                  "<voice name='%s'>" % voice]
-        for i, b in enumerate(blocks):
-            if i > 0:
-                parts.append("<break time='700ms'/>")
-            if b["announce"]:
-                parts.append("<p>%s</p><break time='400ms'/>" % html.escape(b["announce"]))
-            for p in b["paragraphs"]:
-                parts.append("<p>%s</p><break time='350ms'/>" % html.escape(p))
+        if block["announce"]:
+            parts.append("<p>%s</p><break time='400ms'/>" % html.escape(block["announce"]))
+        for p in block["paragraphs"]:
+            parts.append("<p>%s</p><break time='350ms'/>" % html.escape(p))
         parts.append("</voice></speak>")
         return "".join(parts)
 
@@ -351,17 +334,40 @@ data:
             raise HTTPException(status_code=502, detail="Speech synthesis failed")
         return resp.content
 
-    # Synthesize per AREA, never as one giant request: a whole-page "all" SSML is
-    # long enough that the Speech stream ends prematurely. Each area is a small,
-    # reliable call (~10s); we run them in parallel and concatenate the MP3 frames
-    # (CBR ADTS concatenates cleanly and plays as one stream). One block -> one call.
-    def _synthesize_audio(blocks, voice, lang):
-        if len(blocks) <= 1:
-            return _synthesize(_build_ssml(blocks, voice, lang))
-        with ThreadPoolExecutor(max_workers=4) as ex:
-            parts = list(ex.map(
-                lambda b: _synthesize(_build_ssml([b], voice, lang)), blocks))
-        return b"".join(parts)
+    def _audio_blob(name):
+        return _blob_client().get_container_client(
+            AUDIO_CONTAINER).get_blob_client(name)
+
+    def _store(blob, data, what):
+        try:  # caching is best-effort; the caller still serves the audio
+            blob.upload_blob(data, overwrite=True,
+                             content_settings=ContentSettings(content_type="audio/mpeg"))
+        except Exception as e:
+            log.warning("audio cache store failed for %s: %s", what, e)
+
+    # One area's MP3 is the single source of truth: cached, else synthesized once
+    # (one small, reliable Speech call) and cached. The category button plays it
+    # directly, and "all" is just the six clips concatenated. Returns None if the
+    # area has no content. The daily warm-up job pre-populates these (see
+    # cronjobs/audio-warm.yaml) so the first click of the day is already a cache hit.
+    def _area_mp3(d, area, voice, lang):
+        name = "%s/%s/%s/%s.mp3" % (d.isoformat(), area, voice, lang)
+        blob = _audio_blob(name)
+        try:
+            return blob.download_blob().readall()
+        except ResourceNotFoundError:
+            pass
+        conn = get_conn()
+        try:
+            block = _fetch_block(conn, d, area, lang)
+        finally:
+            conn.close()
+        if not block or not block["paragraphs"]:
+            return None
+        data = _synthesize(_build_ssml(block, VOICES[(voice, lang)], lang))
+        _store(blob, data, name)
+        log.info("audio synthesized %s (%d bytes)", name, len(data))
+        return data
 
     def _mp3_response(data):
         return Response(content=data, media_type="audio/mpeg",
@@ -383,31 +389,31 @@ data:
         except ValueError:
             raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
 
-        # Cache key = date/category/voice/lang (one MP3 per combo per day).
-        blob_name = "%s/%s/%s/%s.mp3" % (d.isoformat(), category, voice, lang)
-        blob = _blob_client().get_container_client(
-            AUDIO_CONTAINER).get_blob_client(blob_name)
+        if category != "all":
+            data = _area_mp3(d, category, voice, lang)
+            if data is None:
+                raise HTTPException(status_code=404,
+                                    detail="No content to read for that date/category")
+            return _mp3_response(data)
+
+        # "all" = the six area clips concatenated (CBR ADTS joins cleanly). It reuses
+        # the per-area cache, so once the areas exist it adds NO synthesis; the
+        # assembled result is itself cached for an instant single-read replay.
+        all_blob = _audio_blob("%s/all/%s/%s.mp3" % (d.isoformat(), voice, lang))
         try:
-            data = blob.download_blob().readall()
-            log.info("audio cache hit %s", blob_name)
+            data = all_blob.download_blob().readall()
+            log.info("audio cache hit all/%s/%s", voice, lang)
             return _mp3_response(data)
         except ResourceNotFoundError:
             pass
-
-        conn = get_conn()
-        try:
-            blocks = _fetch_blocks(conn, d, category, lang)
-        finally:
-            conn.close()
-        if not blocks or not any(b["paragraphs"] for b in blocks):
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            parts = list(ex.map(lambda a: _area_mp3(d, a, voice, lang), AREA_ORDER))
+        parts = [p for p in parts if p]
+        if not parts:
             raise HTTPException(status_code=404,
-                                detail="No content to read for that date/category")
-
-        mp3 = _synthesize_audio(blocks, VOICES[(voice, lang)], lang)
-        try:
-            blob.upload_blob(mp3, overwrite=True,
-                             content_settings=ContentSettings(content_type="audio/mpeg"))
-        except Exception as e:  # caching is best-effort; still serve the audio
-            log.warning("audio cache store failed for %s: %s", blob_name, e)
-        log.info("audio synthesized %s (%d bytes)", blob_name, len(mp3))
-        return _mp3_response(mp3)
+                                detail="No content to read for that date")
+        data = b"".join(parts)
+        _store(all_blob, data, "all")
+        log.info("audio assembled all/%s/%s (%d areas, %d bytes)",
+                 voice, lang, len(parts), len(data))
+        return _mp3_response(data)

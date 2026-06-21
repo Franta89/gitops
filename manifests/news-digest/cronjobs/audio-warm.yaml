@@ -1,0 +1,78 @@
+# Pre-generates "Listen" audio so the first click of the day is instant.
+# Runs at 07:10 CET/CEST — after the 06:30 aggregator has published the digest.
+# It simply calls the in-cluster API (/api/audio), which synthesizes + caches each
+# clip with its OWN workload identity; this job needs no Azure credentials, so it
+# carries no workload-identity label and installs nothing (stdlib urllib only).
+#
+# Scope (per the owner's choice): default voice Carolina (f), both languages.
+# It warms the six areas first, then "all" (which is assembled free from those
+# cached areas). Jacob (male) stays lazy — synthesized on first play.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: news-digest-audio-warm
+  namespace: news-digest
+spec:
+  schedule: "10 7 * * *"
+  timeZone: "Europe/Prague"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: news-digest-audio-warm
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: warm
+              image: python:3.12-slim
+              command: ["python", "-c"]
+              args:
+                - |
+                  import json, urllib.request, sys
+                  BASE = "http://api-svc:8000"
+                  AREAS = ["cloud_computing", "ai_development", "it_security",
+                           "financial_markets", "world_news", "euro_news"]
+                  VOICE = "f"            # default voice (Carolina) only
+                  LANGS = ["en", "cs"]   # both languages
+                  try:
+                      dates = json.load(urllib.request.urlopen(BASE + "/api/dates", timeout=30))
+                  except Exception as e:
+                      print("cannot reach api:", e); sys.exit(1)
+                  if not dates:
+                      print("no digests yet; nothing to warm"); sys.exit(0)
+                  date = dates[0]
+                  ok = fail = 0
+                  for lang in LANGS:
+                      for cat in AREAS + ["all"]:   # areas first, then assemble "all"
+                          url = "%s/api/audio?date=%s&category=%s&voice=%s&lang=%s" % (
+                              BASE, date, cat, VOICE, lang)
+                          try:
+                              n = len(urllib.request.urlopen(url, timeout=300).read())
+                              print("warmed %s/%s -> %d bytes" % (lang, cat, n)); ok += 1
+                          except Exception as e:
+                              print("WARN %s/%s failed: %s" % (lang, cat, e)); fail += 1
+                  print("warm complete date=%s ok=%d fail=%d" % (date, ok, fail))
+                  sys.exit(1 if ok == 0 else 0)
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
