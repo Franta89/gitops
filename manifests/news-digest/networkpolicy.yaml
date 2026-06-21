@@ -49,6 +49,10 @@ spec:
         - podSelector:
             matchLabels:
               app: news-frontend
+        # The audio warm-up CronJob calls /api/audio to pre-generate Listen audio.
+        - podSelector:
+            matchLabels:
+              app: news-digest-audio-warm
       ports:
         - protocol: TCP
           port: 8000
