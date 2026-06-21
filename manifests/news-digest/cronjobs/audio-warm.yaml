@@ -40,12 +40,21 @@ spec:
               command: ["python", "-c"]
               args:
                 - |
-                  import json, urllib.request, sys
+                  import json, time, urllib.request, sys
                   BASE = "http://api-svc:8000"
                   AREAS = ["cloud_computing", "ai_development", "it_security",
                            "financial_markets", "world_news", "euro_news"]
                   VOICE = "f"            # default voice (Carolina) only
                   LANGS = ["en", "cs"]   # both languages
+                  # Wait for the API to be ready (it may still be rolling out).
+                  for attempt in range(30):
+                      try:
+                          urllib.request.urlopen(BASE + "/api/health", timeout=10)
+                          break
+                      except Exception:
+                          time.sleep(10)
+                  else:
+                      print("api not ready after 5 min; giving up"); sys.exit(1)
                   try:
                       dates = json.load(urllib.request.urlopen(BASE + "/api/dates", timeout=30))
                   except Exception as e:
