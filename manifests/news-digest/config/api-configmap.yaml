@@ -6,6 +6,8 @@ metadata:
 data:
   api.py: |
     import os
+    import re
+    import json
     import html
     import logging
     import threading
@@ -261,34 +263,48 @@ data:
             conn.close()
 
     # ------------------------------------------------------------------
-    # "Listen" — text-to-speech. Lazy synth + Blob cache: each unique
-    # (date, category, voice, lang) MP3 is synthesized at most once and reused
-    # on every later request. Keyless throughout (Workload Identity).
+    # "Listen" — text-to-speech with PER-SEGMENT synthesis. Each segment (an
+    # area's overview, then each article) is synthesized separately and the clips
+    # are concatenated. Because the output is CBR MP3 (no container header),
+    # playback time is linear in bytes, so each segment's cumulative byte offset
+    # gives its exact start time. We expose those as "markers" so the player can
+    # show milestones and jump between articles. Both the MP3 and a small markers
+    # manifest (.json) are cached in Blob. Keyless throughout (Workload Identity).
     # ------------------------------------------------------------------
+
+    _bm = re.search(r"(\d+)kbitrate", SPEECH_OUTPUT_FORMAT or "")
+    AUDIO_BITRATE_BPS = (int(_bm.group(1)) if _bm else 48) * 1000
+
+    def _seconds(nbytes):
+        return round(nbytes * 8.0 / AUDIO_BITRATE_BPS, 2)
 
     def _pick(en, cs, lang):
         return cs if (lang == "cs" and cs) else en
 
-    def _area_block(cur, area_summary_id, area, overview, overview_cs, lang):
+    # An area's read-aloud SEGMENTS: the overview first (prefixed with the spoken
+    # area name), then one per article. Each segment carries the marker label the
+    # player shows — the area name for the overview, the headline for an article.
+    def _area_segments(cur, area_summary_id, area, overview, overview_cs, lang):
         cur.execute("""
             SELECT title, summary, summary_cs FROM news_items
             WHERE area_summary_id = %s ORDER BY rank
         """, (area_summary_id,))
         items = cur.fetchall()
-        paras = []
+        label = AREA_LABELS[lang].get(area, area)
+        segs = []
         ov = _pick(overview, overview_cs, lang)
         if ov:
-            paras.append(ov)
+            segs.append({"type": "overview", "label": label, "text": label + ". " + ov})
         for it in items:
             s = _pick(it["summary"], it.get("summary_cs"), lang)
-            if it["title"] and s:
-                paras.append(it["title"] + ". " + s)
+            title = it["title"] or ""
+            if title and s:
+                segs.append({"type": "article", "label": title, "text": title + ". " + s})
             elif s:
-                paras.append(s)
-        return {"announce": AREA_LABELS[lang].get(area, area), "paragraphs": paras}
+                segs.append({"type": "article", "label": title, "text": s})
+        return segs
 
-    def _fetch_block(conn, d, area, lang):
-        """One area's read-aloud block (announce + paragraphs), or None."""
+    def _fetch_segments(conn, d, area, lang):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT a.id, a.area, a.overview, a.overview_cs
@@ -298,20 +314,15 @@ data:
             """, (d, area))
             r = cur.fetchone()
             if not r:
-                return None
-            return _area_block(cur, r["id"], r["area"],
-                               r["overview"], r["overview_cs"], lang)
+                return []
+            return _area_segments(cur, r["id"], r["area"],
+                                  r["overview"], r["overview_cs"], lang)
 
-    def _build_ssml(block, voice, lang):
+    def _build_ssml(text, voice, lang):
         xml_lang = XML_LANG.get(lang, "en-US")
-        parts = ["<speak version='1.0' xml:lang='%s'>" % xml_lang,
-                 "<voice name='%s'>" % voice]
-        if block["announce"]:
-            parts.append("<p>%s</p><break time='400ms'/>" % html.escape(block["announce"]))
-        for p in block["paragraphs"]:
-            parts.append("<p>%s</p><break time='350ms'/>" % html.escape(p))
-        parts.append("</voice></speak>")
-        return "".join(parts)
+        return ("<speak version='1.0' xml:lang='%s'><voice name='%s'>"
+                "<p>%s</p><break time='300ms'/></voice></speak>") % (
+                    xml_lang, voice, html.escape(text))
 
     def _synthesize(ssml):
         if not (SPEECH_ENDPOINT and SPEECH_RESOURCE_ID):
@@ -338,36 +349,101 @@ data:
         return _blob_client().get_container_client(
             AUDIO_CONTAINER).get_blob_client(name)
 
-    def _store(blob, data, what):
-        try:  # caching is best-effort; the caller still serves the audio
+    def _store(blob, data, content_type, what):
+        try:  # caching is best-effort; the caller still serves the result
             blob.upload_blob(data, overwrite=True,
-                             content_settings=ContentSettings(content_type="audio/mpeg"))
+                             content_settings=ContentSettings(content_type=content_type))
         except Exception as e:
-            log.warning("audio cache store failed for %s: %s", what, e)
+            log.warning("cache store failed for %s: %s", what, e)
 
-    # One area's MP3 is the single source of truth: cached, else synthesized once
-    # (one small, reliable Speech call) and cached. The category button plays it
-    # directly, and "all" is just the six clips concatenated. Returns None if the
-    # area has no content. The daily warm-up job pre-populates these (see
-    # cronjobs/audio-warm.yaml) so the first click of the day is already a cache hit.
-    def _area_mp3(d, area, voice, lang):
-        name = "%s/%s/%s/%s.mp3" % (d.isoformat(), area, voice, lang)
-        blob = _audio_blob(name)
+    # Ensure one area's MP3 + markers manifest exist (cached, else synthesized once
+    # per segment in parallel and cached). Returns (mp3_bytes, manifest) where
+    # manifest = {"duration": secs, "markers": [{"t","type","label"}, ...]} with
+    # area-relative times. (None, None) if the area has no content. The daily
+    # warm-up job pre-populates these (see cronjobs/audio-warm.yaml).
+    def _ensure_area(d, area, voice, lang):
+        base = "%s/%s/%s/%s" % (d.isoformat(), area, voice, lang)
+        mp3_blob = _audio_blob(base + ".mp3")
+        json_blob = _audio_blob(base + ".json")
         try:
-            return blob.download_blob().readall()
+            mp3 = mp3_blob.download_blob().readall()
+            manifest = json.loads(json_blob.download_blob().readall())
+            return mp3, manifest
         except ResourceNotFoundError:
             pass
         conn = get_conn()
         try:
-            block = _fetch_block(conn, d, area, lang)
+            segs = _fetch_segments(conn, d, area, lang)
         finally:
             conn.close()
-        if not block or not block["paragraphs"]:
-            return None
-        data = _synthesize(_build_ssml(block, VOICES[(voice, lang)], lang))
-        _store(blob, data, name)
-        log.info("audio synthesized %s (%d bytes)", name, len(data))
-        return data
+        if not segs:
+            return None, None
+        vname = VOICES[(voice, lang)]
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            clips = list(ex.map(
+                lambda sg: _synthesize(_build_ssml(sg["text"], vname, lang)), segs))
+        markers, buf, offset = [], [], 0
+        for sg, clip in zip(segs, clips):
+            markers.append({"t": _seconds(offset), "type": sg["type"], "label": sg["label"]})
+            buf.append(clip)
+            offset += len(clip)
+        mp3 = b"".join(buf)
+        manifest = {"duration": _seconds(len(mp3)), "markers": markers}
+        _store(mp3_blob, mp3, "audio/mpeg", base + ".mp3")
+        _store(json_blob, json.dumps(manifest).encode(), "application/json", base + ".json")
+        log.info("audio synthesized %s (%d segs, %d bytes)", base, len(segs), len(mp3))
+        return mp3, manifest
+
+    # "all" = the six area clips concatenated; markers are the per-area markers with
+    # each area's start time added. Reuses the per-area cache (no extra synthesis
+    # once areas exist) and caches the assembled MP3 + manifest for instant replay.
+    def _ensure_all(d, voice, lang):
+        base = "%s/all/%s/%s" % (d.isoformat(), voice, lang)
+        mp3_blob = _audio_blob(base + ".mp3")
+        json_blob = _audio_blob(base + ".json")
+        try:
+            mp3 = mp3_blob.download_blob().readall()
+            manifest = json.loads(json_blob.download_blob().readall())
+            return mp3, manifest
+        except ResourceNotFoundError:
+            pass
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            results = list(ex.map(lambda a: _ensure_area(d, a, voice, lang), AREA_ORDER))
+        markers, buf, offset = [], [], 0
+        for mp3_a, manifest_a in results:
+            if not mp3_a:
+                continue
+            base_t = _seconds(offset)
+            for mk in manifest_a["markers"]:
+                markers.append({"t": round(base_t + mk["t"], 2),
+                                "type": mk["type"], "label": mk["label"]})
+            buf.append(mp3_a)
+            offset += len(mp3_a)
+        if not buf:
+            return None, None
+        mp3 = b"".join(buf)
+        manifest = {"duration": _seconds(len(mp3)), "markers": markers}
+        _store(mp3_blob, mp3, "audio/mpeg", base + ".mp3")
+        _store(json_blob, json.dumps(manifest).encode(), "application/json", base + ".json")
+        log.info("audio assembled %s (%d bytes, %d markers)", base, len(mp3), len(markers))
+        return mp3, manifest
+
+    def _ensure(d, category, voice, lang):
+        if category == "all":
+            return _ensure_all(d, voice, lang)
+        return _ensure_area(d, category, voice, lang)
+
+    def _validate(category, voice, lang, d_str):
+        if category != "all" and category not in AREA_ORDER:
+            raise HTTPException(status_code=400, detail="Unknown category")
+        if voice not in ("f", "m"):
+            raise HTTPException(status_code=400, detail="voice must be f or m")
+        if lang not in ("en", "cs"):
+            raise HTTPException(status_code=400, detail="lang must be en or cs")
+        try:
+            return date.fromisoformat(d_str)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
 
     def _mp3_response(data):
         return Response(content=data, media_type="audio/mpeg",
@@ -378,42 +454,29 @@ data:
               category: str = Query(...),
               voice: str = "f",
               lang: str = "en"):
-        if category != "all" and category not in AREA_ORDER:
-            raise HTTPException(status_code=400, detail="Unknown category")
-        if voice not in ("f", "m"):
-            raise HTTPException(status_code=400, detail="voice must be f or m")
-        if lang not in ("en", "cs"):
-            raise HTTPException(status_code=400, detail="lang must be en or cs")
-        try:
-            d = date.fromisoformat(d_str)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Date must be YYYY-MM-DD")
+        d = _validate(category, voice, lang, d_str)
+        mp3, _m = _ensure(d, category, voice, lang)
+        if mp3 is None:
+            raise HTTPException(status_code=404,
+                                detail="No content to read for that date/category")
+        return _mp3_response(mp3)
 
-        if category != "all":
-            data = _area_mp3(d, category, voice, lang)
-            if data is None:
-                raise HTTPException(status_code=404,
-                                    detail="No content to read for that date/category")
-            return _mp3_response(data)
-
-        # "all" = the six area clips concatenated (CBR ADTS joins cleanly). It reuses
-        # the per-area cache, so once the areas exist it adds NO synthesis; the
-        # assembled result is itself cached for an instant single-read replay.
-        all_blob = _audio_blob("%s/all/%s/%s.mp3" % (d.isoformat(), voice, lang))
+    # Milestones for the player: overview + per-article start times (seconds) and
+    # labels, plus total duration. Reads the cached manifest only (no MP3 download)
+    # on the common path; synthesizes if needed.
+    @app.get("/api/audio/markers")
+    def audio_markers(d_str: str = Query(alias="date"),
+                      category: str = Query(...),
+                      voice: str = "f",
+                      lang: str = "en"):
+        d = _validate(category, voice, lang, d_str)
+        base = "%s/%s/%s/%s" % (d.isoformat(), category, voice, lang)
         try:
-            data = all_blob.download_blob().readall()
-            log.info("audio cache hit all/%s/%s", voice, lang)
-            return _mp3_response(data)
+            return json.loads(_audio_blob(base + ".json").download_blob().readall())
         except ResourceNotFoundError:
             pass
-        with ThreadPoolExecutor(max_workers=4) as ex:
-            parts = list(ex.map(lambda a: _area_mp3(d, a, voice, lang), AREA_ORDER))
-        parts = [p for p in parts if p]
-        if not parts:
+        _mp3, manifest = _ensure(d, category, voice, lang)
+        if manifest is None:
             raise HTTPException(status_code=404,
-                                detail="No content to read for that date")
-        data = b"".join(parts)
-        _store(all_blob, data, "all")
-        log.info("audio assembled all/%s/%s (%d areas, %d bytes)",
-                 voice, lang, len(parts), len(data))
-        return _mp3_response(data)
+                                detail="No content to read for that date/category")
+        return manifest

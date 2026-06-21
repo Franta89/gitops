@@ -58,7 +58,7 @@ data:
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Daily Dose of Tech</title>
       <meta name="description" content="Daily Dose of Tech — AI-curated news digest." />
-      <link rel="stylesheet" href="/style.css?v=8" />
+      <link rel="stylesheet" href="/style.css?v=9" />
     </head>
     <body>
       <header>
@@ -127,16 +127,30 @@ data:
 
       <!-- Audio player bar: play/pause, stop, seekable progress bar. -->
       <div id="player" class="player" style="display:none">
-        <button id="playerToggle" class="player-btn" aria-label="Play/Pause">&#9208;</button>
-        <button id="playerStop" class="player-btn" aria-label="Stop">&#9209;</button>
-        <span id="playerLabel" class="player-label"></span>
-        <input type="range" id="playerSeek" class="player-seek"
-               min="0" max="100" value="0" step="0.1" aria-label="Seek" />
+        <div class="player-controls">
+          <button id="playerPrev" class="player-btn" aria-label="Previous">&#9198;</button>
+          <button id="playerToggle" class="player-btn" aria-label="Play/Pause">&#9208;</button>
+          <button id="playerNext" class="player-btn" aria-label="Next">&#9197;</button>
+          <button id="playerStop" class="player-btn" aria-label="Stop">&#9209;</button>
+        </div>
+        <div class="player-main">
+          <div class="player-toprow">
+            <span id="playerSeg" class="player-seg"></span>
+            <button id="playerVoice" class="player-voice" title="Switch voice"></button>
+          </div>
+          <!-- Custom seek bar with milestone ticks (overview + per-article). -->
+          <div id="playerProgress" class="player-progress" role="slider" tabindex="0"
+               aria-label="Seek">
+            <div id="playerFill" class="player-progress-fill"></div>
+            <div id="playerMarkers" class="player-markers"></div>
+            <div id="playerThumb" class="player-thumb"></div>
+          </div>
+        </div>
         <span id="playerTime" class="player-time"></span>
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=11"></script>
+      <script src="/app.js?v=12"></script>
     </body>
     </html>
 
@@ -536,29 +550,81 @@ data:
       border-radius: 10px 10px 0 0;
       box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.3);
     }
+    .player-controls { display: flex; align-items: center; gap: 0.35rem; }
     .player-btn {
       background: var(--btn-muted);
       color: var(--text-primary);
-      padding: 0.3rem 0.6rem;
+      padding: 0.3rem 0.55rem;
       font-size: 1rem;
       line-height: 1;
     }
     .player-btn:hover { background: var(--btn-muted-hover); }
-    .player-label {
+
+    .player-main { flex: 1; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+    .player-toprow { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+    .player-seg {
       font-size: 0.8rem;
       color: var(--text-secondary);
       white-space: nowrap;
-      max-width: 16ch;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .player-seek { flex: 1; accent-color: var(--accent); cursor: pointer; min-width: 80px; }
+    .player-voice {
+      background: var(--btn-muted);
+      color: var(--text-primary);
+      font-size: 0.72rem;
+      padding: 0.2rem 0.55rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .player-voice:hover { background: var(--btn-muted-hover); }
+
+    /* Custom seek bar: a track with a played fill, milestone ticks and a thumb. */
+    .player-progress {
+      position: relative;
+      height: 12px;
+      background: var(--btn-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      touch-action: none;
+    }
+    .player-progress-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 0;
+      background: var(--accent);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+    .player-markers { position: absolute; inset: 0; pointer-events: none; }
+    .player-marker {
+      position: absolute;
+      top: 2px; bottom: 2px;
+      width: 2px;
+      margin-left: -1px;
+      background: var(--text-dim);
+      border-radius: 1px;
+    }
+    /* Overview milestones stand out from per-article ones. */
+    .player-marker.overview { background: var(--rank-color); top: 0; bottom: 0; width: 3px; }
+    .player-thumb {
+      position: absolute;
+      top: 50%;
+      width: 12px; height: 12px;
+      margin-left: -6px;
+      transform: translateY(-50%);
+      background: #fff;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      pointer-events: none;
+    }
     .player-time { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; min-width: 9ch; text-align: right; }
 
     @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; }
       .header-inner { flex-direction: column; align-items: flex-start; }
-      .player-label { max-width: 8ch; }
+      .player { gap: 0.4rem; padding: 0.5rem 0.6rem; }
+      .player-time { min-width: 7ch; }
     }
 
   app.js: |
@@ -653,6 +719,8 @@ data:
         chooseVoice:    "Choose voice",
         voiceFemale:    "Carolina (female)",
         voiceMale:      "Jacob (male)",
+        voiceNameF:     "Carolina",
+        voiceNameM:     "Jacob",
         listenLoading:  "Synthesizing audio...",
         listenError:    "Audio unavailable"
       },
@@ -698,6 +766,8 @@ data:
         chooseVoice:    "Vyber hlasu",
         voiceFemale:    "Karolína (zensky)",
         voiceMale:      "Jakub (muzsky)",
+        voiceNameF:     "Karolína",
+        voiceNameM:     "Jakub",
         listenLoading:  "Generuji zvuk...",
         listenError:    "Zvuk neni dostupny"
       }
@@ -752,6 +822,8 @@ data:
       document.getElementById("voicePopupTitle").textContent = t.chooseVoice;
       document.getElementById("voiceOptF").textContent   = t.voiceFemale;
       document.getElementById("voiceOptM").textContent   = t.voiceMale;
+      var pv = document.getElementById("playerVoice");
+      if (pv) pv.textContent = "🔊 " + (voice === "m" ? t.voiceNameM : t.voiceNameF);
 
       document.getElementById("aboutTitle").textContent  = t.aboutTitle;
       document.getElementById("aboutDesc1").textContent  = t.aboutDesc1;
@@ -1025,14 +1097,25 @@ data:
 
     // ---- Listen (text-to-speech) ----
     // The Listen split button plays the persisted voice; the caret opens the
-    // Carolina/Jacob chooser. Audio comes from /api/audio (synthesized once per
-    // date/category/voice/lang, then cached). lang follows the page toggle.
+    // Carolina/Jacob chooser. Audio comes from /api/audio; /api/audio/markers gives
+    // the milestones (overview + per-article start times) shown on the seek bar.
+    // lang follows the page toggle. Only one stream plays at a time.
     var voice = localStorage.getItem("ddot-voice") || "f";
     var audioEl = document.getElementById("audioEl");
     var playingCategory = null;
+    var markers = [];        // [{t, type, label}] for the current stream
+    var mDuration = 0;       // duration from the manifest (fallback before metadata)
+    var pendingSeek = null;  // seconds to seek to once metadata is ready (voice switch)
+    var pendingPlay = false;
+    var seeking = false;
 
     function audioUrl(category) {
       return "/api/audio?date=" + encodeURIComponent(currentDate) +
+             "&category=" + encodeURIComponent(category) +
+             "&voice=" + voice + "&lang=" + lang;
+    }
+    function markersUrl(category) {
+      return "/api/audio/markers?date=" + encodeURIComponent(currentDate) +
              "&category=" + encodeURIComponent(category) +
              "&voice=" + voice + "&lang=" + lang;
     }
@@ -1043,26 +1126,76 @@ data:
       return m + ":" + (sec < 10 ? "0" : "") + sec;
     }
 
+    function dur() {
+      return (audioEl.duration && isFinite(audioEl.duration)) ? audioEl.duration : mDuration;
+    }
     function setToggleIcon(playing) {
       document.getElementById("playerToggle").innerHTML = playing ? "&#9208;" : "&#9654;";
     }
-
-    function updateTime() {
-      var cur = audioEl.currentTime || 0, dur = audioEl.duration || 0;
-      if (dur > 0) document.getElementById("playerSeek").value = (cur / dur) * 100;
-      document.getElementById("playerTime").textContent = fmtTime(cur) + " / " + fmtTime(dur);
+    function voiceLabel() {
+      return "🔊 " + (voice === "m" ? T[lang].voiceNameM : T[lang].voiceNameF);
     }
 
-    // Only one stream at a time: starting a new category replaces the current src.
+    // Index of the milestone currently being read (last marker at/just before t).
+    function currentMarkerIndex(t) {
+      var idx = -1;
+      for (var i = 0; i < markers.length; i++) {
+        if (markers[i].t <= t + 0.05) idx = i; else break;
+      }
+      return idx;
+    }
+
+    function renderMarkers() {
+      var box = document.getElementById("playerMarkers");
+      box.innerHTML = "";
+      var d = dur();
+      if (d <= 0) return;
+      markers.forEach(function(mk) {
+        var el = document.createElement("div");
+        el.className = "player-marker" + (mk.type === "overview" ? " overview" : "");
+        el.style.left = Math.min(100, (mk.t / d) * 100) + "%";
+        el.title = mk.label;
+        box.appendChild(el);
+      });
+    }
+
+    function updateProgress() {
+      var cur = audioEl.currentTime || 0, d = dur();
+      var pct = d > 0 ? Math.min(100, (cur / d) * 100) : 0;
+      document.getElementById("playerFill").style.width = pct + "%";
+      document.getElementById("playerThumb").style.left = pct + "%";
+      document.getElementById("playerTime").textContent = fmtTime(cur) + " / " + fmtTime(d);
+      var idx = currentMarkerIndex(cur);
+      if (idx >= 0) document.getElementById("playerSeg").textContent = markers[idx].label;
+    }
+
+    function loadMarkers(category) {
+      markers = []; mDuration = 0; renderMarkers();
+      fetch(markersUrl(category))
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(j) {
+          if (!j) return;
+          markers = j.markers || [];
+          mDuration = j.duration || 0;
+          renderMarkers();
+          updateProgress();
+        })
+        .catch(function() {});
+    }
+
     function playCategory(category, label) {
       if (!currentDate) return;
       playingCategory = category;
-      document.getElementById("playerLabel").textContent = label;
-      document.getElementById("playerTime").textContent  = T[lang].listenLoading;
-      document.getElementById("playerSeek").value = 0;
+      document.getElementById("playerSeg").textContent  = label;
+      document.getElementById("playerTime").textContent = T[lang].listenLoading;
+      document.getElementById("playerFill").style.width = "0%";
+      document.getElementById("playerThumb").style.left = "0%";
+      document.getElementById("playerVoice").textContent = voiceLabel();
       document.getElementById("player").style.display = "flex";
+      pendingSeek = null;
       audioEl.src = audioUrl(category);
       audioEl.play().catch(function() {});
+      loadMarkers(category);
     }
 
     function stopAudio() {
@@ -1070,11 +1203,54 @@ data:
       audioEl.removeAttribute("src");
       audioEl.load();
       playingCategory = null;
+      markers = [];
       document.getElementById("player").style.display = "none";
     }
 
-    audioEl.addEventListener("loadedmetadata", updateTime);
-    audioEl.addEventListener("timeupdate", updateTime);
+    // Switch voice mid-listen: reload the same category in the other voice and
+    // resume near the same spot (voices differ slightly in pacing, so by time).
+    function switchVoice() {
+      if (!playingCategory) return;
+      pendingSeek = audioEl.currentTime || 0;
+      pendingPlay = !audioEl.paused;
+      voice = voice === "m" ? "f" : "m";
+      localStorage.setItem("ddot-voice", voice);
+      document.getElementById("playerVoice").textContent = voiceLabel();
+      audioEl.src = audioUrl(playingCategory);
+      audioEl.load();
+      loadMarkers(playingCategory);
+    }
+
+    // Jump between milestones. Back: restart the current segment if >2s in, else
+    // go to the previous one. Forward: jump to the next segment.
+    function gotoMarker(delta) {
+      var d = dur(), cur = audioEl.currentTime || 0;
+      if (!markers.length) {
+        audioEl.currentTime = Math.max(0, Math.min(d, cur + delta * 15));
+        return;
+      }
+      var idx = currentMarkerIndex(cur);
+      if (delta < 0) {
+        if (idx >= 0 && cur - markers[idx].t > 2) audioEl.currentTime = markers[idx].t;
+        else if (idx > 0) audioEl.currentTime = markers[idx - 1].t;
+        else audioEl.currentTime = 0;
+      } else {
+        audioEl.currentTime = (idx + 1 < markers.length) ? markers[idx + 1].t : d;
+      }
+      updateProgress();
+    }
+
+    audioEl.addEventListener("loadedmetadata", function() {
+      renderMarkers();
+      if (pendingSeek != null) {
+        try { audioEl.currentTime = Math.min(pendingSeek, audioEl.duration || pendingSeek); }
+        catch (e) {}
+        pendingSeek = null;
+        if (pendingPlay) { audioEl.play().catch(function() {}); pendingPlay = false; }
+      }
+      updateProgress();
+    });
+    audioEl.addEventListener("timeupdate", function() { if (!seeking) updateProgress(); });
     audioEl.addEventListener("play",  function() { setToggleIcon(true); });
     audioEl.addEventListener("pause", function() { setToggleIcon(false); });
     audioEl.addEventListener("ended", function() { setToggleIcon(false); });
@@ -1089,10 +1265,28 @@ data:
       else { audioEl.pause(); }
     });
     document.getElementById("playerStop").addEventListener("click", stopAudio);
-    document.getElementById("playerSeek").addEventListener("input", function(e) {
-      var dur = audioEl.duration || 0;
-      if (dur > 0) audioEl.currentTime = (parseFloat(e.target.value) / 100) * dur;
+    document.getElementById("playerPrev").addEventListener("click", function() { gotoMarker(-1); });
+    document.getElementById("playerNext").addEventListener("click", function() { gotoMarker(1); });
+    document.getElementById("playerVoice").addEventListener("click", switchVoice);
+
+    // Custom seek bar: click or drag anywhere on the track to scrub.
+    var prog = document.getElementById("playerProgress");
+    function seekFromEvent(e) {
+      var rect = prog.getBoundingClientRect();
+      var cx = (e.clientX !== undefined) ? e.clientX
+             : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      var frac = Math.max(0, Math.min(1, (cx - rect.left) / rect.width));
+      var d = dur();
+      if (d > 0) { audioEl.currentTime = frac * d; updateProgress(); }
+    }
+    prog.addEventListener("pointerdown", function(e) {
+      seeking = true;
+      try { prog.setPointerCapture(e.pointerId); } catch (x) {}
+      seekFromEvent(e);
     });
+    prog.addEventListener("pointermove", function(e) { if (seeking) seekFromEvent(e); });
+    prog.addEventListener("pointerup",   function()  { seeking = false; });
+    prog.addEventListener("pointercancel", function() { seeking = false; });
 
     function openVoicePopup(category, label) {
       var popup = document.getElementById("voicePopup");
