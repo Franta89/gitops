@@ -28,7 +28,7 @@ account and both **keyless** (Workload Identity):
 | Speech ("Listen") | **Neural text-to-speech**, Standard Neural tier, native EN + CS voices |
 | Speech API surface | TTS **REST** — `https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/tts/cognitiveservices/v1` |
 | Auth (both) | Azure **Workload Identity** (keyless) → Entra ID bearer token |
-| MP3 cache | Azure **Blob** container `audio` (per-area clip per day; pre-generated for the default voice, lazy otherwise) |
+| MP3 cache | Azure **Blob** container `audio` (per-area clip + markers `.json` per day; pre-generated for the default voice, lazy otherwise) |
 | Provisioned but NOT in the inference path | AI Foundry Hub |
 
 The AI Foundry Hub exists (Terraform creates it) but the app **does not** call
@@ -112,33 +112,34 @@ short-names above. Voice short-names are configurable via the `VOICE_CAROLINA_*`
 
 ### How a request works
 
-The **per-area** clip is the unit of caching and synthesis. A category button plays
-its area's clip directly; **"all" is the six area clips concatenated** (CBR MP3
-frames join cleanly), so the whole-page reading adds **no extra synthesis** once the
-areas exist — and never sends one oversized SSML (which made the Speech stream end
-prematurely).
+Synthesis is **per segment** — an area's overview, then each article. The clips are
+concatenated, and because the output is CBR MP3 (no container header) **playback
+time is linear in bytes**, so each segment's cumulative byte offset is its exact
+start time. Those offsets are the **milestones** (`/api/audio/markers`) the player
+draws on the seek bar and uses for prev/next. An area clip plays directly for a
+category button; **"all" is the six area clips concatenated** (no extra synthesis
+once the areas exist — and never one oversized SSML, which made the Speech stream
+end prematurely).
 
 ```text
-GET /api/audio?date=<YYYY-MM-DD>&category=<slug|all>&voice=<f|m>&lang=<en|cs>
-   │
-   ├─ category = one area:
-   │     blob date/<area>/voice/lang.mp3
-   │       • HIT  → stream it (no synthesis)
-   │       • MISS → read that area's text (overview + per-article summaries) from
-   │                PostgreSQL in the requested language → build SSML (announce the
-   │                area, <break>s, xml:lang) → POST to Speech REST → store → stream
-   │
-   └─ category = all:
-         blob date/all/voice/lang.mp3
-           • HIT  → stream it
-           • MISS → fetch the six area clips (each cached-or-synthesized, in
-                    parallel), concatenate, store the assembled MP3, stream
+GET /api/audio?date=&category=<slug|all>&voice=<f|m>&lang=<en|cs>   → MP3
+GET /api/audio/markers?…(same params)                              → {duration, markers[]}
+
+per area:  blob date/<area>/voice/lang.{mp3,json}
+  • HIT  → return cached MP3 / manifest
+  • MISS → read the area's text from PostgreSQL (requested language) → synthesize
+           each segment in parallel → concatenate → record each segment's start
+           time → store MP3 + markers .json → return
+all:       blob date/all/voice/lang.{mp3,json}
+  • MISS → assemble from the six area clips; markers = each area's markers shifted
+           by that area's start time → store MP3 + markers .json
 ```
 
-Because the digest is **static for the day**, each area clip is synthesized **at
-most once** per `(date, voice, lang)` and reused on every later click. A Blob
-lifecycle rule deletes cached audio after **7 days**. The API reads **summaries
-only**, never full article bodies.
+Each `markers` entry is `{t (seconds), type: overview|article, label}` — the area
+name for an overview, the headline for an article. Because the digest is **static
+for the day**, each segment is synthesized **at most once** per `(date, voice,
+lang)`. A Blob lifecycle rule deletes cached audio after **7 days**. The API reads
+**summaries only**, never full article bodies.
 
 ### Pre-generation (instant first play)
 
