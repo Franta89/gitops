@@ -25,12 +25,15 @@ data:
   SPEECH_RESOURCE_ID: "/subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.CognitiveServices/accounts/ais-ddot-dev-swc-001"
   # Standard Neural at 24kHz (cost default; HD would be audio-48khz-* + HD voices).
   SPEECH_OUTPUT_FORMAT: "audio-24khz-48kbitrate-mono-mp3"
-  # Friendly popup names map to native per-language voices (gender x page lang).
-  # Carolina = female (Karolina on the Czech page); Jacob = male (Jakub in Czech).
+  # Carolina = female, Jacob = male. We use the SAME multilingual voice for both
+  # languages so Czech is read by a voice that also speaks English: English words
+  # and acronyms (wrapped in SSML <lang xml:lang="en-US"> by the API) are then
+  # pronounced the English way inside Czech, which sounds far more professional
+  # than the monolingual cs-CZ voices (which read English with Czech phonetics).
   VOICE_CAROLINA_EN: "en-US-AvaMultilingualNeural"
-  VOICE_CAROLINA_CS: "cs-CZ-VlastaNeural"
+  VOICE_CAROLINA_CS: "en-US-AvaMultilingualNeural"
   VOICE_JACOB_EN: "en-US-AndrewMultilingualNeural"
-  VOICE_JACOB_CS: "cs-CZ-AntoninNeural"
+  VOICE_JACOB_CS: "en-US-AndrewMultilingualNeural"
   # Blob MP3 cache (container 'audio' on the existing Foundry storage account).
   AUDIO_STORAGE_ACCOUNT: "stddotdevswc001hub"
   AUDIO_CONTAINER: "audio"
