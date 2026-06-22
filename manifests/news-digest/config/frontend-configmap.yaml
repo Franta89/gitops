@@ -150,7 +150,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=13"></script>
+      <script src="/app.js?v=14"></script>
     </body>
     </html>
 
@@ -657,8 +657,8 @@ data:
       "  |                              +----------^----------+                |",
       "  |                                         |                           |",
       "  |                         +--------------+---------------+            |",
-      "  |                         |   CronJob -- aggregator.py   |            |",
-      "  |                         |   06:30 CET daily            |            |",
+      "  |                         |  CronJobs: aggregator 06:30  |            |",
+      "  |                         |  audio-warm 07:10, monthly   |            |",
       "  |                         +--------------+---------------+            |",
       "  |                                        |                            |",
       "  |  +-------------------------------------+------------------------+   |",
@@ -666,14 +666,14 @@ data:
       "  |  |  Azure Workload Identity --> keyless auth to Azure services  |   |",
       "  |  +------------------------------------------------------------+    |",
       "  +---------------------------------------------------------------------+",
-      "                |                                   |",
-      "                v                                   v",
-      "  +----------------------+          +---------------------------+",
-      "  |  RSS / Atom feeds    |          |  Azure AI Services        |",
-      "  |  authoritative srcs  |          |  (direct API call)        |",
-      "  |  real-time, keyless  |          |  GPT-5.4-mini             |",
-      "  |  48-72h window       |          |  (GlobalStandard tier)    |",
-      "  +----------------------+          +---------------------------+"
+      "           |                       |                       |",
+      "           v                       v                       v",
+      "  +--------------------+  +-------------------------+  +--------------------+",
+      "  | RSS / Atom feeds   |  | Azure AI Services       |  | Azure Blob Storage |",
+      "  | authoritative srcs |  | GPT-5.4-mini (text)     |  | audio MP3 cache    |",
+      "  | real-time, keyless |  | + Neural TTS (Listen)   |  | for Listen (WI)    |",
+      "  | 48-72h window      |  | keyless, GlobalStandard |  | 7-day lifecycle    |",
+      "  +--------------------+  +-------------------------+  +--------------------+"
     ].join("\n");
 
     const T = {
