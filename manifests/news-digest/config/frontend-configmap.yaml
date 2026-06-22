@@ -150,7 +150,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=12"></script>
+      <script src="/app.js?v=13"></script>
     </body>
     </html>
 
@@ -700,12 +700,13 @@ data:
         langSwitch:     "CZ",
         aboutTitle:     "About Daily Dose of Tech",
         aboutDesc1:     "Daily Dose of Tech (ddot) is a development and test project exploring Kubernetes orchestration and Azure AI services. It is not a production system and may be unavailable or updated without notice.",
-        aboutDesc2:     "The app runs on Azure Kubernetes Service (AKS) managed with Argo CD (GitOps). News is gathered daily in real time from authoritative RSS/Atom feeds (no API key, no paywall) and sorted by topic into six areas -- Cloud Computing, AI Development, IT Security, Financial Markets, World News, and Euro News (Europe-only). Each story is categorised by what it is about, not by which feed it came from; within the topic areas global stories are listed first, then a Europe section. Azure AI (GPT-5.4-mini) selects the top stories per area, writes the summaries, and translates them into Czech -- authenticated keylessly with Azure Workload Identity.",
+        aboutDesc2:     "The app runs on Azure Kubernetes Service (AKS) managed with Argo CD (GitOps). News is gathered daily in real time from authoritative RSS/Atom feeds (no API key, no paywall) and sorted by topic into six areas -- Cloud Computing, AI Development, IT Security, Financial Markets, World News, and Euro News (Europe-only). Each story is categorised by what it is about, not by which feed it came from; within the topic areas global stories are listed first, then a Europe section. Azure AI (GPT-5.4-mini) selects the top stories per area, writes the summaries, and translates them into Czech -- authenticated keylessly with Azure Workload Identity. A built-in Listen feature reads the digest aloud -- per category or the whole page, in English or Czech, with a male or female voice -- using Azure AI neural text-to-speech, with milestones for the overview and each article so you can jump straight to a story.",
         aboutList:      [
           "Infrastructure: AKS (Free tier), Azure Sweden Central",
           "News sources: authoritative RSS/Atom feeds (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, Euronews, plus AWS / Google Cloud / OpenAI newsrooms), 48-72h window",
           "Categorisation: stories routed to areas by topic/entity (deterministic rules + one AI classification pass), not by source feed",
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- selects, summarises, and translates (EN/CS) the top stories per area",
+          "Listen: Azure AI neural text-to-speech reads the digest aloud (EN/CS, male/female voice, per-article milestones); audio is pre-generated and cached",
           "Ingress: Azure Application Gateway for Containers (Gateway API)",
           "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
           "Secrets: Azure Key Vault + CSI driver (keyless via Workload Identity)",
@@ -747,12 +748,13 @@ data:
         langSwitch:     "EN",
         aboutTitle:     "O aplikaci Daily Dose of Tech",
         aboutDesc1:     "Daily Dose of Tech (ddot) je vyvojovy a testovaci projekt zkoumajici orchestraci Kubernetes a sluzby Azure AI. Neni to produkcni system a muze byt nedostupny nebo aktualizovan bez upozorneni.",
-        aboutDesc2:     "Aplikace bezi na clusteru Azure Kubernetes Service (AKS) spravovanem pres Argo CD (GitOps). Zpravy jsou kazdy den nacitany v realnem case z duveryhodnych RSS/Atom kanalu (bez API klice, bez platebni brany) a trideny podle tematu do sesti oblasti -- Cloudove technologie, Vyvoj AI, IT Bezpecnost, Financni trhy, Svetove zpravy a Evropske zpravy (jen Evropa). Kazda zprava je zarazena podle toho, o cem je, ne podle zdrojoveho kanalu; v tematickych oblastech jsou nejprve globalni zpravy, pak sekce Evropa. Azure AI (GPT-5.4-mini) vybere hlavni zpravy v kazde oblasti, napise shrnuti a prelozi je do cestiny -- s keyless autentizaci pres Azure Workload Identity.",
+        aboutDesc2:     "Aplikace bezi na clusteru Azure Kubernetes Service (AKS) spravovanem pres Argo CD (GitOps). Zpravy jsou kazdy den nacitany v realnem case z duveryhodnych RSS/Atom kanalu (bez API klice, bez platebni brany) a trideny podle tematu do sesti oblasti -- Cloudove technologie, Vyvoj AI, IT Bezpecnost, Financni trhy, Svetove zpravy a Evropske zpravy (jen Evropa). Kazda zprava je zarazena podle toho, o cem je, ne podle zdrojoveho kanalu; v tematickych oblastech jsou nejprve globalni zpravy, pak sekce Evropa. Azure AI (GPT-5.4-mini) vybere hlavni zpravy v kazde oblasti, napise shrnuti a prelozi je do cestiny -- s keyless autentizaci pres Azure Workload Identity. Vestavena funkce Poslech precte prehled nahlas -- po oblastech nebo celou stranku, anglicky nebo cesky, muzskym nebo zenskym hlasem -- pomoci neuronoveho prevodu textu na rec Azure AI, s milniky pro prehled i kazdy clanek, takze muzete preskocit primo na zpravu.",
         aboutList:      [
           "Infrastruktura: AKS (Free tier), Azure Svedsko - stred",
           "Zdroje zprav: duveryhodne RSS/Atom kanaly (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, Euronews a newsroomy AWS / Google Cloud / OpenAI), okno 48-72h",
           "Trideni: zpravy jsou zarazeny do oblasti podle tematu/entity (deterministicka pravidla + jeden AI klasifikacni pruchod), ne podle zdrojoveho kanalu",
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- vybira, sumarizuje a preklada (EN/CS) hlavni zpravy v kazde oblasti",
+          "Poslech: neuronovy prevod textu na rec Azure AI cte prehled nahlas (EN/CS, muzsky/zensky hlas, milniky po clancich); zvuk je predgenerovany a cachovany",
           "Ingress: Azure Application Gateway for Containers (Gateway API)",
           "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
           "Tajne klice: Azure Key Vault + CSI driver (keyless pres Workload Identity)",
