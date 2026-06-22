@@ -97,18 +97,29 @@ stop and a seekable progress bar.
 
 ### Voices (friendly name × page language)
 
-A popup offers two voices; the friendly name maps to a **native** voice for the
-active page language (the EN/CZ toggle picks the language, the popup picks the
-gender). The gender choice persists in `localStorage` across both languages.
+A popup offers two voices; the friendly name maps to a voice for the active page
+language (the EN/CZ toggle picks the language, the popup picks the gender). The
+gender choice persists in `localStorage` across both languages.
 
 | Popup option | English page | Czech page (shown as) |
 | --- | --- | --- |
-| **Carolina** — female (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` (**Karolína**) |
-| **Jacob** — male | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` (**Jakub**) |
+| **Carolina** — female (default) | `en-US-AvaMultilingualNeural` | `en-US-AvaMultilingualNeural` (**Karolína**) |
+| **Jacob** — male | `en-US-AndrewMultilingualNeural` | `en-US-AndrewMultilingualNeural` (**Jakub**) |
 
-The friendly names are display-only labels; the spoken audio uses the native voice
-short-names above. Voice short-names are configurable via the `VOICE_CAROLINA_*` /
-`VOICE_JACOB_*` keys in `settings-configmap.yaml`.
+Both languages use the **same multilingual voice** (Ava/Andrew, which also speak
+Czech) so the voice persona is consistent and — crucially — Czech is read by a
+voice that can also pronounce English. The friendly names are display-only labels;
+the voice short-names are configurable via the `VOICE_CAROLINA_*` / `VOICE_JACOB_*`
+keys in `settings-configmap.yaml`.
+
+**English inside Czech.** For the Czech reading, the API wraps English **acronyms**
+(API, GKE, AWS, …) and **brand/mixed-case names** (OpenAI, macOS, PostgreSQL, …) in
+SSML `<lang xml:lang="en-US">` so the multilingual voice pronounces them the English
+way instead of with Czech phonetics (`<lang>` only works on multilingual voices —
+the previous monolingual `cs-CZ-*` voices could not do this). Plain lowercase
+English words can't be told apart from Czech by rule, so they rely on the
+multilingual voice's own handling; marking every English term reliably would need
+the translator (GPT) to tag them at digest time — a possible future improvement.
 
 ### How a request works
 
