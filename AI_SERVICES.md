@@ -103,23 +103,33 @@ gender choice persists in `localStorage` across both languages.
 
 | Popup option | English page | Czech page (shown as) |
 | --- | --- | --- |
-| **Carolina** — female (default) | `en-US-AvaMultilingualNeural` | `en-US-AvaMultilingualNeural` (**Karolína**) |
-| **Jacob** — male | `en-US-AndrewMultilingualNeural` | `en-US-AndrewMultilingualNeural` (**Jakub**) |
+| **Carolina** — female (default) | `en-US-AvaMultilingualNeural` | `cs-CZ-VlastaNeural` (**Karolína**) |
+| **Jacob** — male | `en-US-AndrewMultilingualNeural` | `cs-CZ-AntoninNeural` (**Jakub**) |
 
-Both languages use the **same multilingual voice** (Ava/Andrew, which also speak
-Czech) so the voice persona is consistent and — crucially — Czech is read by a
-voice that can also pronounce English. The friendly names are display-only labels;
-the voice short-names are configurable via the `VOICE_CAROLINA_*` / `VOICE_JACOB_*`
-keys in `settings-configmap.yaml`.
+English uses the multilingual Ava/Andrew; **Czech uses the native `cs-CZ` voices**
+(Vlasta/Antonin) — the most natural, pleasant Czech. The friendly names are
+display-only labels; the voice short-names are configurable via the
+`VOICE_CAROLINA_*` / `VOICE_JACOB_*` keys in `settings-configmap.yaml`.
 
-**English inside Czech.** For the Czech reading, the API wraps English **acronyms**
-(API, GKE, AWS, …) and **brand/mixed-case names** (OpenAI, macOS, PostgreSQL, …) in
-SSML `<lang xml:lang="en-US">` so the multilingual voice pronounces them the English
-way instead of with Czech phonetics (`<lang>` only works on multilingual voices —
-the previous monolingual `cs-CZ-*` voices could not do this). Plain lowercase
-English words can't be told apart from Czech by rule, so they rely on the
-multilingual voice's own handling; marking every English term reliably would need
-the translator (GPT) to tag them at digest time — a possible future improvement.
+**English inside Czech.** The native Czech voice is monolingual, so English bits are
+made to sound right by **respelling them phonetically** the way a Czech reader would
+(in `_czech_speech_text`, applied to the spoken text only — never the displayed
+milestone labels):
+
+- **English acronyms** are spelled with English letter names — `AWS` → "ej dabljú
+  es", `API` → "ej pí aj", `GKE` → "dží kej í". Only standalone acronyms match
+  (`\b[A-Z]{2,}`), so the `AI` in `OpenAI` or `OS` in `macOS` is left intact.
+- **"Cloud"** is read with a K (English C = K): `Cloudové` → "Klaudové".
+- A few **Czech abbreviations** are spelled the Czech way instead (`EU` → "é ú",
+  `USA`, `OSN`, `DPH`); **word-pronounced** acronyms (`NATO`, `NASA`, …) are read as
+  a word, not letters.
+
+Plain lowercase English words (other than "Cloud") and fully-English article titles
+can't be respelled by rule and are read with a Czech accent — the inherent limit of
+a monolingual Czech voice. Full coverage would need the translator (GPT) to tag
+English terms at digest time (a possible future improvement). This replaced an
+earlier multilingual-voice + SSML `<lang>` approach, which handled English prose but
+made Czech itself sound less natural.
 
 ### How a request works
 
