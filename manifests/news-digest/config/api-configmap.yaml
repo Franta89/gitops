@@ -276,8 +276,9 @@ data:
     AUDIO_BITRATE_BPS = (int(_bm.group(1)) if _bm else 48) * 1000
 
     # Bump to invalidate cached audio when synthesis changes (old blobs expire via
-    # the 7-day lifecycle rule). v2 = per-segment + Czech English-token wrapping.
-    AUDIO_VER = "v2"
+    # the 7-day lifecycle rule). v3 = native Czech voice + Czech phonetic respelling
+    # of English acronyms and "Cloud".
+    AUDIO_VER = "v3"
 
     def _seconds(nbytes):
         return round(nbytes * 8.0 / AUDIO_BITRATE_BPS, 2)
@@ -322,38 +323,48 @@ data:
             return _area_segments(cur, r["id"], r["area"],
                                   r["overview"], r["overview_cs"], lang)
 
-    # Tokens to read in English even within Czech: ALL-CAPS acronyms (API, SMTP,
-    # AWS, GKE, LLM, GPT...) and mixed-case brand names (OpenAI, GitHub, macOS,
-    # PostgreSQL, iPhone). A multilingual voice + <lang xml:lang="en-US"> then
-    # pronounces them the English way. (Plain lowercase English words can't be told
-    # apart from Czech, so they rely on the multilingual voice's own handling.)
-    _TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9]*")
+    # Czech is read by the NATIVE cs-CZ voice (nicest Czech). It can't speak English,
+    # so we make English bits sound right by respelling them phonetically in Czech
+    # the way a Czech reader would: English acronyms spelled with English letter
+    # names (AWS -> "ej dabljú es"), and "Cloud" read with a K (Cloud -> Klaud,
+    # because English C = K). A few genuinely Czech abbreviations are spelled the
+    # Czech way instead. Applied ONLY to the spoken text, never the marker labels.
+    _EN_LETTER = {
+        "A": "ej", "B": "bí", "C": "sí", "D": "dý", "E": "í", "F": "ef", "G": "dží",
+        "H": "ejč", "I": "aj", "J": "džej", "K": "kej", "L": "el", "M": "em",
+        "N": "en", "O": "ou", "P": "pí", "Q": "kjů", "R": "ár", "S": "es", "T": "tý",
+        "U": "jů", "V": "ví", "W": "dabljú", "X": "eks", "Y": "vaj", "Z": "zet",
+    }
+    # Abbreviations a Czech reads in Czech (spelled with Czech letter names).
+    _CZ_ACRONYM = {"EU": "é ú", "USA": "ú es á", "OSN": "ó es en", "DPH": "dé pé há"}
+    # Acronyms pronounced as a WORD, not letter-by-letter (Title-case so the voice
+    # reads them as a word rather than spelling them out).
+    _WORD_ACRONYM = {"NATO", "NASA", "RAM", "ROM", "SIM", "GIF", "UNESCO", "UNICEF"}
 
-    def _is_english_token(t):
-        if len(t) < 2:
-            return False
-        if re.fullmatch(r"[A-Z]{2,}[0-9]*", t):       # acronym, e.g. API / GPT5
-            return True
-        if re.search(r"[a-z]", t) and re.search(r"[A-Z]", t[1:]):  # OpenAI, macOS
-            return True
-        return False
+    def _spell_acronym(tok):
+        if tok in _WORD_ACRONYM:
+            return tok.capitalize()       # NATO -> "Nato" (read as a word)
+        if tok in _CZ_ACRONYM:
+            return _CZ_ACRONYM[tok]
+        return " ".join(_EN_LETTER.get(c, c) for c in tok)
 
-    def _wrap_english(text):
-        out, last = [], 0
-        for m in _TOKEN.finditer(text):
-            if _is_english_token(m.group(0)):
-                out.append(html.escape(text[last:m.start()]))
-                out.append("<lang xml:lang='en-US'>%s</lang>" % html.escape(m.group(0)))
-                last = m.end()
-        out.append(html.escape(text[last:]))
-        return "".join(out)
+    def _czech_speech_text(text):
+        # "Cloud" -> "Klaud" (any case / Czech declension like Cloudové -> Klaudové).
+        text = re.sub(r"(?i)cloud",
+                      lambda m: ("K" if m.group(0)[0].isupper() else "k") + "laud",
+                      text)
+        # Standalone runs of 2+ capitals = acronyms -> spelled English (or Czech if
+        # in the set). The \b + negative lookahead avoid matching capital runs inside
+        # mixed-case words (so the "AI" in "OpenAI" or "OS" in "macOS" is left alone).
+        return re.sub(r"\b[A-Z]{2,}(?![a-z])",
+                      lambda m: _spell_acronym(m.group(0)), text)
 
     def _build_ssml(text, voice, lang):
         xml_lang = XML_LANG.get(lang, "en-US")
-        body = _wrap_english(text) if lang == "cs" else html.escape(text)
-        return ("<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' "
-                "xml:lang='%s'><voice name='%s'><p>%s</p>"
-                "<break time='300ms'/></voice></speak>") % (xml_lang, voice, body)
+        spoken = _czech_speech_text(text) if lang == "cs" else text
+        return ("<speak version='1.0' xml:lang='%s'><voice name='%s'><p>%s</p>"
+                "<break time='300ms'/></voice></speak>") % (
+                    xml_lang, voice, html.escape(spoken))
 
     def _synthesize(ssml):
         if not (SPEECH_ENDPOINT and SPEECH_RESOURCE_ID):
