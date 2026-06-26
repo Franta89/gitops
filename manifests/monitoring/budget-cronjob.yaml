@@ -1,0 +1,150 @@
+# Azure budget -> Pushgateway. Keyless via Workload Identity (runs as
+# monitoring-secret-sa -> the secrets-sync managed identity, which holds the
+# read-only "Cost Management Reader" role on the subscription). Reads the monthly
+# budget amount (the resource-group budget) and the subscription month-to-date
+# actual cost, then pushes remaining/spend/used-ratio for the Grafana "Budget" panel.
+# Stdlib only (no pip): does the Workload Identity client-assertion token exchange
+# by hand, like cf-analytics. Cost data lags a few hours, so every 6h is plenty.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: budget-script
+  namespace: monitoring
+data:
+  budget_push.py: |
+    import json, os, sys, urllib.request, urllib.parse
+
+    SUB = os.environ["SUBSCRIPTION_ID"]
+    RG = os.environ["RESOURCE_GROUP"]
+    PGW = os.environ.get("PUSHGATEWAY", "http://pushgateway:9091").rstrip("/")
+    ARM = "https://management.azure.com"
+
+    def _http(url, data=None, headers=None, method=None):
+        req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.read()
+
+    # --- Workload Identity: exchange the federated SA token for an ARM token ---
+    def arm_token():
+        with open(os.environ["AZURE_FEDERATED_TOKEN_FILE"]) as f:
+            assertion = f.read().strip()
+        authority = os.environ["AZURE_AUTHORITY_HOST"].rstrip("/")
+        url = "%s/%s/oauth2/v2.0/token" % (authority, os.environ["AZURE_TENANT_ID"])
+        body = urllib.parse.urlencode({
+            "client_id": os.environ["AZURE_CLIENT_ID"],
+            "grant_type": "client_credentials",
+            "scope": ARM + "/.default",
+            "client_assertion_type":
+                "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+            "client_assertion": assertion,
+        }).encode()
+        resp = json.loads(_http(url, data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"}))
+        return resp["access_token"]
+
+    tok = arm_token()
+    H = {"Authorization": "Bearer " + tok}
+
+    # --- monthly budget amount (resource-group budget) ---
+    budgets = json.loads(_http(
+        "%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Consumption/budgets"
+        "?api-version=2023-05-01" % (ARM, SUB, RG), headers=H))
+    vals = budgets.get("value") or []
+    amount = float(vals[0]["properties"]["amount"]) if vals else 0.0
+
+    # --- subscription month-to-date actual cost ---
+    q = json.dumps({
+        "type": "ActualCost", "timeframe": "MonthToDate",
+        "dataset": {"granularity": "None",
+                    "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}}},
+    }).encode()
+    cost = json.loads(_http(
+        "%s/subscriptions/%s/providers/Microsoft.CostManagement/query"
+        "?api-version=2023-11-01" % (ARM, SUB), data=q,
+        headers={**H, "Content-Type": "application/json"}, method="POST"))
+    cols = [c["name"].lower() for c in cost["properties"]["columns"]]
+    rows = cost["properties"]["rows"] or [[0]]
+    ci = cols.index("cost") if "cost" in cols else 0
+    cur_i = cols.index("currency") if "currency" in cols else None
+    spend = float(rows[0][ci])
+    currency = rows[0][cur_i] if cur_i is not None else "USD"
+
+    remaining = amount - spend
+    ratio = (spend / amount) if amount > 0 else 0.0
+
+    def metric(name, help_, value, labels=""):
+        return ["# HELP %s %s" % (name, help_), "# TYPE %s gauge" % name,
+                "%s%s %s" % (name, labels, value)]
+
+    cl = '{currency="%s"}' % currency
+    lines = []
+    lines += metric("ddot_azure_budget_amount", "Monthly Azure budget", amount, cl)
+    lines += metric("ddot_azure_spend_mtd", "Subscription month-to-date actual cost", spend, cl)
+    lines += metric("ddot_azure_budget_remaining", "Budget minus month-to-date spend", remaining, cl)
+    lines += metric("ddot_azure_budget_used_ratio", "Fraction of budget spent (0-1)", round(ratio, 6))
+
+    payload = ("\n".join(lines) + "\n").encode()
+    _http(PGW + "/metrics/job/azure_budget", data=payload, method="PUT")
+    print("pushed azure budget: amount=%.2f spend=%.4f remaining=%.4f %s"
+          % (amount, spend, remaining, currency))
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: azure-budget
+  namespace: monitoring
+spec:
+  schedule: "0 */6 * * *"      # every 6h — Azure cost data lags a few hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: monitoring-secret-sa
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: budget-push
+              image: python:3.12-slim
+              command: ["python", "/scripts/budget_push.py"]
+              env:
+                - name: SUBSCRIPTION_ID
+                  value: "71ba5d23-aba5-4515-9582-259879889653"
+                - name: RESOURCE_GROUP
+                  value: "rg-kafka-dev-swc-001"
+                - name: PUSHGATEWAY
+                  value: "http://pushgateway:9091"
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: budget-script
