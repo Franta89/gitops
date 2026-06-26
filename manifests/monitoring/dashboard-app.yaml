@@ -27,13 +27,13 @@ data:
       },
       "timepicker": {},
       "timezone": "browser",
-      "title": "DDoT \u2014 Application & Traffic",
+      "title": "DDoT — Application & Traffic",
       "uid": "ddot-app",
-      "version": 1,
+      "version": 2,
       "panels": [
         {
           "type": "row",
-          "title": "Site Traffic \u00e2\u20ac\u201d Cloudflare",
+          "title": "Site Traffic â€” Cloudflare",
           "gridPos": {
             "h": 1,
             "w": 24,
@@ -342,7 +342,7 @@ data:
         },
         {
           "id": 38,
-          "title": "TLS Cert \u00e2\u20ac\u201d time to expiry",
+          "title": "TLS Cert â€” time to expiry",
           "type": "stat",
           "gridPos": {
             "h": 4,
@@ -556,6 +556,204 @@ data:
                 "lastNotNull"
               ]
             }
+          }
+        },
+        {
+          "type": "row",
+          "title": "Azure Budget",
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 26
+          },
+          "id": 49,
+          "collapsed": false
+        },
+        {
+          "id": 50,
+          "title": "Monthly Budget",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_azure_budget_amount",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyEUR",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "blue"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 51,
+          "title": "Spend (month-to-date)",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_azure_spend_mtd",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyEUR",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 52,
+          "title": "Budget Remaining",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 8,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_azure_budget_remaining",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyEUR",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0
+                  },
+                  {
+                    "color": "green",
+                    "value": 10
+                  }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "background"
+          }
+        },
+        {
+          "id": 53,
+          "title": "Budget Used",
+          "type": "gauge",
+          "gridPos": {
+            "h": 4,
+            "w": 7,
+            "x": 13,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "expr": "ddot_azure_budget_used_ratio",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1.5,
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 1.0
+                  }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "showThresholdMarkers": true
           }
         }
       ]
