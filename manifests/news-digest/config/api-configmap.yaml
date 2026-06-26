@@ -60,6 +60,22 @@ data:
                "world_news": "Svetove zpravy", "euro_news": "Evropske zpravy"},
     }
 
+    # Pronunciation tags the aggregator's GPT step adds in Czech text:
+    # ⟦display|phonetic⟧ — "display" is shown on screen, "phonetic" is spoken so the
+    # native Czech voice says English words right (workloady -> "vorkloudy"). The two
+    # transforms below pick the right side; stray brackets are cleaned up defensively.
+    _PRON_RE = re.compile(r"⟦([^|⟧]*)\|([^⟧]*)⟧")
+
+    def _pron_display(text):
+        if not text or "⟦" not in text:
+            return text
+        return _PRON_RE.sub(lambda m: m.group(1), text).replace("⟦", "").replace("⟧", "")
+
+    def _pron_speech(text):
+        if not text or "⟦" not in text:
+            return text
+        return _PRON_RE.sub(lambda m: m.group(2), text).replace("⟦", "").replace("⟧", "")
+
     # Lazily-created singletons (keyless): one credential shared by Speech + Blob.
     _cred = None
     _cred_lock = threading.Lock()
@@ -123,7 +139,7 @@ data:
             areas[row["area"]] = {
                 "area": row["area"],
                 "overview": row["overview"],
-                "overview_cs": row.get("overview_cs") or "",
+                "overview_cs": _pron_display(row.get("overview_cs") or ""),
                 "items": [],
             }
         for row in rows_items:
@@ -133,7 +149,7 @@ data:
                     "title": row["title"],
                     "url": row["url"],
                     "summary": row["summary"],
-                    "summary_cs": row.get("summary_cs") or "",
+                    "summary_cs": _pron_display(row.get("summary_cs") or ""),
                     "is_european": bool(row.get("is_european")),
                 })
         for a in areas.values():
@@ -227,12 +243,17 @@ data:
                     ORDER BY rank
                 """, (row["id"],))
                 items = cur.fetchall()
+            out_items = []
+            for it in items:
+                it = dict(it)
+                it["summary_cs"] = _pron_display(it.get("summary_cs") or "")
+                out_items.append(it)
             return {
                 "date": str(d),
                 "area": area,
                 "overview": row["overview"],
-                "overview_cs": row.get("overview_cs") or "",
-                "items": list(items),
+                "overview_cs": _pron_display(row.get("overview_cs") or ""),
+                "items": out_items,
             }
         finally:
             conn.close()
@@ -349,6 +370,8 @@ data:
         return " ".join(_EN_LETTER.get(c, c) for c in tok)
 
     def _czech_speech_text(text):
+        # GPT-provided pronunciations first: ⟦workloady|vorkloudy⟧ -> "vorkloudy".
+        text = _pron_speech(text)
         # "Cloud" -> "Klaud" (any case / Czech declension like Cloudové -> Klaudové).
         text = re.sub(r"(?i)cloud",
                       lambda m: ("K" if m.group(0)[0].isupper() else "k") + "laud",
