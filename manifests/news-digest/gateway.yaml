@@ -1,63 +1,31 @@
-# The shared Gateways: terminate TLS and front both the ddot app (/) and Grafana
+# The shared Gateway: terminates TLS and fronts both the ddot app (/) and Grafana
 # (/grafana, cross-namespace).
 #
-# CUTOVER IN PROGRESS (started 2026-08-07). Two Gateways run in parallel so the
-# move off Azure Application Gateway for Containers costs no downtime:
+# Served by Envoy Gateway in-cluster (GatewayClass `eg`) since 2026-08-07,
+# replacing Azure Application Gateway for Containers. AGC cost ~EUR 126/month —
+# 52% of the entire subscription — on flat hourly meters that bill identically at
+# zero traffic (77% of it the mandatory association, only ~6% usage-driven), so
+# there was nothing to tune. See README.md "Retired: Application Gateway for
+# Containers" for the cost breakdown and the restore checklist.
 #
-#   ddot-gateway     -> AGC   (azure-alb-external)  — serves today's Cloudflare CNAME
-#   ddot-gateway-eg  -> Envoy (eg)                  — serves the new static IP
+# NAME: the `-eg` suffix is a leftover from the parallel-run cutover, when this
+# Gateway existed alongside the AGC-backed `ddot-gateway`. It is kept because
+# renaming forces Envoy Gateway to tear down this Gateway's Deployment/Service and
+# re-attach the static IP to a new one — a self-inflicted outage for a cosmetic
+# gain. Rename during a maintenance window if it ever bothers you.
 #
-# Both carry the same listeners and the same TLS cert, and the HTTPRoutes list
-# both as parentRefs, so either can serve the site. Once the Cloudflare records
-# point at the static IP and traffic is verified, ddot-gateway and the whole AGC
-# stack are removed — see README.md "Retired: Application Gateway for Containers".
+# The public IP is the static azurerm_public_ip.ingress, claimed by the Envoy
+# Service and locked to Cloudflare edge ranges — both in
+# manifests/envoy-gateway/gatewayclass.yaml. Read the address with:
+#   kubectl get gateway ddot-gateway-eg -n news-digest -o jsonpath='{.status.addresses[0].value}'
 #
-# Why: AGC cost ~EUR 126/month, 52% of the entire subscription, on flat hourly
-# meters that bill identically at zero traffic (77% of it the mandatory
-# association). Envoy Gateway serves the same Gateway API objects in-cluster for
-# the price of a public IP.
+# TO RESTORE AGC: re-add a Gateway with gatewayClassName azure-alb-external and
+# the annotation alb.networking.azure.io/alb-id: <terraform output alb_id>, then
+# repoint the Cloudflare records at its runtime FQDN (AGC regenerates the FQDN on
+# recreation; it cannot be pinned). Full checklist in README.md.
 #
 # allowedRoutes.namespaces.from: All lets routes in other namespaces (e.g. the
 # Grafana HTTPRoute in `monitoring`) attach to these listeners.
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: ddot-gateway
-  namespace: news-digest
-  annotations:
-    # Keeps AGC programmed, and with it the FQDN the Cloudflare records currently
-    # target. Removing this Gateway before DNS moves would destroy the AGC
-    # frontend and take the site down.
-    #
-    # TO RESTORE AGC: keep this Gateway, delete ddot-gateway-eg below, and follow
-    # the checklist in README.md. alb-id comes from `terraform output alb_id`
-    # (after uncommenting the module) and will differ if AGC is recreated.
-    alb.networking.azure.io/alb-id: /subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.ServiceNetworking/trafficControllers/alb-ddot-dev-swc-001
-spec:
-  gatewayClassName: azure-alb-external
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-      allowedRoutes:
-        namespaces:
-          from: All
-    - name: https
-      protocol: HTTPS
-      port: 443
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: dailydoseoftech-tls
-      allowedRoutes:
-        namespaces:
-          from: All
----
-# Envoy Gateway equivalent. Its Service claims the static IP
-# (azurerm_public_ip.ingress) and is locked to Cloudflare edge ranges — both set
-# in manifests/envoy-gateway/gatewayclass.yaml. Read the address with:
-#   kubectl get gateway ddot-gateway-eg -n news-digest -o jsonpath='{.status.addresses[0].value}'
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

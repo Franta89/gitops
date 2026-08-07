@@ -1,4 +1,4 @@
-# Routes for the Daily Dose of Tech app, attached to ddot-gateway.
+# Routes for the Daily Dose of Tech app, attached to ddot-gateway-eg (Envoy).
 #
 # news-digest-route: serves the app on HTTPS. All paths go to the frontend nginx,
 # which proxies /api to the API pod (same as the old Ingress).
@@ -8,12 +8,7 @@ metadata:
   name: news-digest-route
   namespace: news-digest
 spec:
-  # Attached to both Gateways during the AGC -> Envoy cutover, so either can serve
-  # while the Cloudflare records move. Drop the ddot-gateway parentRef once AGC is
-  # retired.
   parentRefs:
-    - name: ddot-gateway
-      sectionName: https
     - name: ddot-gateway-eg
       sectionName: https
   hostnames:
@@ -38,8 +33,6 @@ metadata:
   namespace: news-digest
 spec:
   parentRefs:
-    - name: ddot-gateway
-      sectionName: http
     - name: ddot-gateway-eg
       sectionName: http
   hostnames:

@@ -1,16 +1,31 @@
-# Attaches the Azure WAF policy to the whole Gateway (covers app, Grafana, Argo CD).
-# OWASP 3.2 managed rules (Prevention) + origin lock (blocks any source that is not
-# a Cloudflare edge IP). Provisioned in infra-terraform (module app-gateway-containers).
-apiVersion: alb.networking.azure.io/v1
-kind: WebApplicationFirewallPolicy
-metadata:
-  name: ddot-waf
-  namespace: news-digest
-spec:
-  targetRef:
-    group: gateway.networking.k8s.io
-    kind: Gateway
-    name: ddot-gateway
-    namespace: news-digest
-  webApplicationFirewall:
-    id: /subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.Network/applicationGatewayWebApplicationFirewallPolicies/waf-ddot-dev-swc-001
+# Azure WAF policy attachment for AGC. RETIRED 2026-08-07 with AGC itself.
+#
+# IMPORTANT: this never worked. The WAFPolicy CR was Accepted and its targetRef
+# resolved, but the ALB controller never programmed it — it sat at
+# Deployment=False / reason=NoDeployment ("missing security policy") for 52 days,
+# and no WAF meter ever appeared on the bill. So neither the OWASP 3.2 ruleset nor
+# the Cloudflare origin-lock custom rule was ever in force.
+#
+# Both roles now sit elsewhere and are verifiable: WAF at Cloudflare, and the
+# origin lock as loadBalancerSourceRanges in manifests/envoy-gateway/gatewayclass.yaml,
+# which AKS renders into NSG rules. See SECURITY.md.
+#
+# COMMENTED, NOT DELETED. Restoring it means fixing the underlying programming
+# failure too — uncommenting alone will not give you a working WAF.
+
+# # Attaches the Azure WAF policy to the whole Gateway (covers app, Grafana, Argo CD).
+# # OWASP 3.2 managed rules (Prevention) + origin lock (blocks any source that is not
+# # a Cloudflare edge IP). Provisioned in infra-terraform (module app-gateway-containers).
+# apiVersion: alb.networking.azure.io/v1
+# kind: WebApplicationFirewallPolicy
+# metadata:
+#   name: ddot-waf
+#   namespace: news-digest
+# spec:
+#   targetRef:
+#     group: gateway.networking.k8s.io
+#     kind: Gateway
+#     name: ddot-gateway
+#     namespace: news-digest
+#   webApplicationFirewall:
+#     id: /subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.Network/applicationGatewayWebApplicationFirewallPolicies/waf-ddot-dev-swc-001

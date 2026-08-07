@@ -1,7 +1,7 @@
 # Grafana route under Gateway API (replaces the kube-prometheus-stack nginx
 # Ingress, which is disabled in apps/monitoring.yaml).
 #
-# Attaches cross-namespace to ddot-gateway in the news-digest namespace — allowed
+# Attaches cross-namespace to ddot-gateway-eg in the news-digest namespace — allowed
 # because that Gateway's listeners set allowedRoutes.namespaces.from: All. The
 # HTTPS listener's dailydoseoftech-tls cert already covers this host, so Grafana
 # keeps working over TLS at https://dailydoseoftech.org/grafana.
@@ -16,13 +16,9 @@ metadata:
   name: grafana-route
   namespace: monitoring
 spec:
-  # Both Gateways during the AGC -> Envoy cutover; drop ddot-gateway once AGC is
-  # retired. Cross-namespace attach is allowed by allowedRoutes.namespaces.from:
-  # All on each listener.
+  # Cross-namespace attach, allowed by allowedRoutes.namespaces.from: All on the
+  # Gateway's listeners.
   parentRefs:
-    - name: ddot-gateway
-      namespace: news-digest
-      sectionName: https
     - name: ddot-gateway-eg
       namespace: news-digest
       sectionName: https
