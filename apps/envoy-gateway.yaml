@@ -1,0 +1,58 @@
+# Envoy Gateway — the Gateway API implementation that replaces Azure Application
+# Gateway for Containers (AGC). Wave 2, alongside the alb-controller it succeeds.
+#
+# WHY: AGC billed ~EUR 126/month on a flat hourly basis — 77% of it the mandatory
+# "Standard Association" meter — regardless of traffic. Only ~6% was usage-driven,
+# so there was nothing to tune: the cost was a fixed floor for a dev/test sandbox.
+# Envoy Gateway runs the data plane in-cluster and is exposed through the AKS
+# `kubernetes` Standard Load Balancer that already exists (and had 0 rules on it),
+# so the ingress path costs a public IP (~EUR 3/month) instead.
+#
+# The chart also ships the Gateway API CRDs, upgrading them from the v1.2.1
+# standard bundle that the alb-controller chart installed to v1.5.1 experimental.
+# That is additive — existing v1 Gateway/HTTPRoute objects stay valid — and the
+# alb-controller Argo app does not track those CRDs (Helm crds/ directories are
+# install-only), so the two do not fight over them during cutover.
+#
+# ServerSideApply is required: the Gateway API CRDs exceed the client-side
+# last-applied annotation size limit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: envoy-gateway
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: docker.io/envoyproxy
+    chart: gateway-helm
+    targetRevision: v1.8.3
+    helm:
+      releaseName: envoy-gateway
+      values: |
+        deployment:
+          replicas: 1
+          envoyGateway:
+            # Chart default is 100m/256Mi. This sandbox runs a single 2-vCPU node
+            # where CPU *requests* — not actual use — are the binding constraint,
+            # so the control plane is right-sized to what it really draws. The
+            # 1Gi limit is left at the chart default: limits reserve nothing, they
+            # only cap a burst.
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 1024Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
