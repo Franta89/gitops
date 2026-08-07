@@ -8,12 +8,13 @@ data:
     import os
     import re
     import json
+    import time
     import logging
     import requests
     import psycopg2
     import psycopg2.extras
     from datetime import datetime, timedelta, timezone
-    from openai import OpenAI
+    from openai import OpenAI, RateLimitError
     from azure.identity import WorkloadIdentityCredential
     from azure.core.credentials import AccessToken
 
@@ -794,6 +795,45 @@ data:
     # ------------------------------------------------------------------
     # Monthly summary
     # ------------------------------------------------------------------
+    # A whole month of items does not fit in one request. The gpt-5.4-mini
+    # deployment is provisioned at capacity=10 (10K TPM), and one all-areas prompt
+    # runs ~30K prompt tokens — over 3x the entire per-minute budget, so it is
+    # rejected with a hard 429 that no retry can clear. The month is therefore
+    # summarised MAP-REDUCE: one small call per area, then one synthesis call over
+    # the resulting paragraphs. Every request stays well inside the quota window.
+    MONTHLY_ITEMS_PER_AREA = 20
+
+    # Seconds to wait between monthly calls. Each area call is ~4K tokens, so two
+    # per minute is the most the 10K TPM budget sustains.
+    MONTHLY_CALL_SPACING = 30
+
+    def _chat_paced(client: OpenAI, prompt: str, max_tokens: int,
+                    temperature: float = 0.4, attempts: int = 4) -> str:
+        """One chat call that survives quota pressure.
+
+        The OpenAI client's own retry uses sub-second backoff, which is useless
+        against an Azure rate limit measured over a 60s window — so 429 is handled
+        here by sleeping past the window boundary instead.
+        """
+        # max_retries is a client option, not a per-call argument.
+        once = client.with_options(max_retries=0)
+        for attempt in range(1, attempts + 1):
+            try:
+                resp = once.chat.completions.create(
+                    model=OPENAI_DEPLOYMENT,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_completion_tokens=max_tokens,
+                )
+                return resp.choices[0].message.content.strip()
+            except RateLimitError:
+                if attempt == attempts:
+                    raise
+                log.warning("429 on monthly call (attempt %d/%d) — waiting %ds for "
+                            "the quota window to roll over", attempt, attempts, 65)
+                time.sleep(65)
+        raise RuntimeError("unreachable")
+
     def generate_monthly_summary(conn, client: OpenAI, year: int, month: int):
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute("""
@@ -803,7 +843,7 @@ data:
                 JOIN news_items n ON n.area_summary_id = a.id
                 WHERE EXTRACT(YEAR FROM d.date) = %s
                   AND EXTRACT(MONTH FROM d.date) = %s
-                ORDER BY a.area, n.rank
+                ORDER BY a.area, d.date, n.rank
             """, (year, month))
             rows = cur.fetchall()
 
@@ -811,32 +851,64 @@ data:
             log.warning("No data found for %d-%02d — skipping monthly summary", year, month)
             return
 
+        # A running story is re-reported on many days of the month. Keep the first
+        # occurrence of each headline so the item budget buys distinct stories.
         grouped: dict[str, list] = {}
+        seen: dict[str, set] = {}
         for row in rows:
-            grouped.setdefault(row["area"], []).append(
+            area = row["area"]
+            key = re.sub(r"[^a-z0-9]+", " ", row["title"].lower()).strip()
+            if key in seen.setdefault(area, set()):
+                continue
+            seen[area].add(key)
+            grouped.setdefault(area, []).append(
                 f"- {row['title']}: {row['summary']}"
             )
 
-        prompt_parts = [f"Monthly Technical Digest — {year}-{month:02d}\n"]
-        for area, items in grouped.items():
+        # --- map: one paragraph per area -------------------------------------
+        sections: list[tuple[str, str]] = []
+        for idx, (area, items) in enumerate(grouped.items()):
             label = AREA_LABELS.get(area, area)
-            prompt_parts.append(f"\n## {label}\n" + "\n".join(items[:30]))
+            if idx:
+                time.sleep(MONTHLY_CALL_SPACING)
+            prompt = (
+                f"Monthly Technical Digest — {year}-{month:02d}\n\n## {label}\n"
+                + "\n".join(items[:MONTHLY_ITEMS_PER_AREA])
+                + "\n\nWrite ONE dense paragraph summarising this area's month: major "
+                "architectural shifts, key vulnerability disclosures, platform releases "
+                "and engineering trends. Use precise technical language. Return only "
+                "the paragraph, with no heading and no bullet points."
+            )
+            try:
+                sections.append((label, _chat_paced(client, prompt, 600)))
+                log.info("Monthly area summarised: %s (%d distinct items)",
+                         area, len(items))
+            except Exception:
+                log.exception("Monthly area failed, continuing without it: %s", area)
 
-        prompt = "\n".join(prompt_parts) + (
-            "\n\nWrite a comprehensive monthly technical summary covering major architectural "
-            "shifts, key vulnerability disclosures, platform releases, and engineering trends "
-            "across all areas. Use precise technical language. Highlight cross-domain "
-            "dependencies and converging patterns. Write one paragraph per area covered "
-            "above plus a final cross-cutting synthesis paragraph."
-        )
+        if not sections:
+            log.error("All area calls failed for %d-%02d — nothing written", year, month)
+            return
 
-        response = client.chat.completions.create(
-            model=OPENAI_DEPLOYMENT,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-            max_completion_tokens=2000,
+        # --- reduce: one cross-cutting synthesis over the paragraphs ----------
+        time.sleep(MONTHLY_CALL_SPACING)
+        synth_prompt = (
+            f"Monthly Technical Digest — {year}-{month:02d}\n\n"
+            + "\n\n".join(f"## {label}\n{text}" for label, text in sections)
+            + "\n\nWrite ONE final synthesis paragraph across all areas above: "
+            "cross-domain dependencies, converging patterns and the through-line of "
+            "the month. Return only the paragraph, with no heading."
         )
-        content = response.choices[0].message.content.strip()
+        try:
+            synthesis = _chat_paced(client, synth_prompt, 700)
+        except Exception:
+            log.exception("Synthesis call failed — storing area paragraphs only")
+            synthesis = ""
+
+        parts = [f"{label}\n{text}" for label, text in sections]
+        if synthesis:
+            parts.append(f"Synthesis\n{synthesis}")
+        content = "\n\n".join(parts)
 
         with conn.cursor() as cur:
             cur.execute("""
@@ -870,9 +942,15 @@ data:
         now_utc = datetime.now(timezone.utc)
 
         if mode == "monthly":
-            first_of_this_month = now_utc.replace(day=1)
-            prev = first_of_this_month - timedelta(days=1)
-            generate_monthly_summary(conn, client, prev.year, prev.month)
+            # "monthly" summarises the previous calendar month; an explicit
+            # "monthly YYYY MM" targets one month, for backfilling.
+            if len(sys.argv) >= 4:
+                year, month = int(sys.argv[2]), int(sys.argv[3])
+            else:
+                first_of_this_month = now_utc.replace(day=1)
+                prev = first_of_this_month - timedelta(days=1)
+                year, month = prev.year, prev.month
+            generate_monthly_summary(conn, client, year, month)
             conn.close()
             return
 

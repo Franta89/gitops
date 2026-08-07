@@ -10,7 +10,11 @@ spec:
   timeZone: "Europe/Prague"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 2
+  # This job runs once a month, so a failure must stay inspectable until someone
+  # looks. restartPolicy: Never keeps the failed pod (and its logs) instead of
+  # letting the job controller delete it — an earlier 429 failure was invisible
+  # precisely because OnFailure discarded the pod.
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       backoffLimit: 1
@@ -21,7 +25,7 @@ spec:
             azure.workload.identity/use: "true"
         spec:
           serviceAccountName: news-digest-sa
-          restartPolicy: OnFailure
+          restartPolicy: Never
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
