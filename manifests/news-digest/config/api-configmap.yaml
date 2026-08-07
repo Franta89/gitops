@@ -258,6 +258,36 @@ data:
         finally:
             conn.close()
 
+    # The newest summary that actually exists. The UI cannot compute this date
+    # itself: the current month is only summarised on the 1st of the NEXT month,
+    # so "now" is never a valid key, and a month whose job failed would leave a
+    # naive "previous month" guess showing an error instead of the last good one.
+    # Declared before the {year}/{month} route for clarity; the two cannot
+    # collide anyway, as they differ in path-segment count.
+    @app.get("/api/monthly/latest")
+    def monthly_summary_latest():
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT year, month, content, created_at
+                    FROM monthly_summaries
+                    ORDER BY year DESC, month DESC
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404,
+                                    detail="Monthly summary not yet generated")
+            return {
+                "year": row["year"],
+                "month": row["month"],
+                "content": row["content"],
+                "created_at": str(row["created_at"]),
+            }
+        finally:
+            conn.close()
+
     @app.get("/api/monthly/{year}/{month}")
     def monthly_summary(year: int, month: int):
         if not (1 <= month <= 12):

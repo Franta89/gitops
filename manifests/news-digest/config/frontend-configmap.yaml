@@ -150,7 +150,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=14"></script>
+      <script src="/app.js?v=15"></script>
     </body>
     </html>
 
@@ -1018,14 +1018,20 @@ data:
       }
     }
 
+    // No arguments = whatever the newest stored summary is. Asking for the
+    // current month always 404s: it is only summarised on the 1st of the month
+    // after it ends.
     async function loadMonthly(year, month) {
       document.getElementById("dailyView").style.display   = "none";
       document.getElementById("loadingMsg").style.display  = "block";
       document.getElementById("loadingMsg").textContent    = T[lang].loadingMonthly;
       try {
-        var data = await api("/api/monthly/" + year + "/" + month);
+        var data = await api(year && month
+          ? "/api/monthly/" + year + "/" + month
+          : "/api/monthly/latest");
         document.getElementById("loadingMsg").style.display  = "none";
-        document.getElementById("monthlyTitle").textContent  = T[lang].monthlyTitle(year, month);
+        document.getElementById("monthlyTitle").textContent  =
+          T[lang].monthlyTitle(data.year, data.month);
         document.getElementById("monthlyContent").textContent = data.content;
         document.getElementById("monthlyView").style.display = "block";
       } catch (e) {
@@ -1060,8 +1066,7 @@ data:
 
     document.getElementById("monthlyBtn").addEventListener("click", function() {
       closeAbout();
-      var now = new Date();
-      loadMonthly(now.getFullYear(), now.getMonth() + 1);
+      loadMonthly();
     });
 
     document.getElementById("backBtn").addEventListener("click", function() {
