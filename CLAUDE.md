@@ -19,7 +19,7 @@ exist before the ddot app can run.
 1. `infra-terraform` provisions AKS, Azure AI Services (GPT-5.4-mini), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
 2. Copy two Terraform outputs into gitops manifests (see placeholders in `manifests/news-digest/`).
 3. `kubectl apply -f bootstrap/root-app.yaml` registers the app-of-apps.
-4. Argo CD syncs `apps/` in wave order: Strimzi (0) → Kafka (1) → cert-manager + alb-controller (2) → monitoring + postgresql (3) → config (4) → ddot app (5).
+4. Argo CD syncs `apps/` in wave order: Strimzi (0) → Kafka (1) → cert-manager + envoy-gateway (2) → monitoring + postgresql + envoy-gateway-config (3) → config (4) → ddot app (5).
 
 ## Applications
 
@@ -28,7 +28,8 @@ exist before the ddot app can run.
 | strimzi-operator    | 0    | kafka            | Strimzi CRDs + operator            |
 | kafka-cluster       | 1    | kafka            | KRaft Kafka cluster                |
 | cert-manager        | 2    | cert-manager     | TLS certificate management         |
-| alb-controller      | 2    | azure-alb-system | Gateway API controller (Azure AGC) |
+| envoy-gateway       | 2    | envoy-gateway-system | Gateway API controller (Envoy)  |
+| envoy-gateway-config| 3    | envoy-gateway-system | GatewayClass `eg` + EnvoyProxy  |
 | monitoring          | 3    | monitoring       | Prometheus + Grafana               |
 | postgresql          | 3    | puzzle           | PostgreSQL for puzzle app          |
 | cert-manager-config | 4    | cert-manager     | Let's Encrypt ClusterIssuer        |
@@ -40,10 +41,9 @@ exist before the ddot app can run.
 Public URL: **<https://dailydoseoftech.org>** and **<https://www.dailydoseoftech.org>**
 
 DNS is live and proxied through **Cloudflare** (orange cloud enabled). Because the
-public entry point is now **Azure Application Gateway for Containers (AGC)**, which
-exposes a generated FQDN rather than a static IP, the Cloudflare records for both
-hosts are **CNAMEs → the AGC FQDN** (the Gateway's runtime address — see below); Cloudflare
-CNAME-flattening makes this work at the apex. TLS certificates issued by Let's Encrypt
+public entry point is **Envoy Gateway** running in-cluster behind the AKS Standard
+Load Balancer, the apex is an **A record → the static ingress IP**
+(`terraform output ingress_public_ip`) and `www` is a CNAME to the apex. TLS certificates issued by Let's Encrypt
 via **DNS-01 challenge** (Cloudflare API token) — an explicit cert-manager
 `Certificate` (`manifests/news-digest/certificate.yaml`) writes the `dailydoseoftech-tls`
 Secret that the Gateway's HTTPS listener references. Cloudflare SSL/TLS mode must be
@@ -52,9 +52,12 @@ set to **Full (strict)**.
 ### Routing — Gateway API (not Ingress)
 
 Traffic enters via the **Gateway API** (`ingress-nginx` was retired; it is now
-upstream maintenance-only). The `alb-controller` app installs the Gateway API CRDs
-and the `azure-alb-external` GatewayClass and programs the Terraform-provisioned AGC
-(BYO model). A single shared `Gateway` (`ddot-gateway` in `news-digest`) terminates
+upstream maintenance-only). The `envoy-gateway` app installs the Gateway API CRDs
+and the controller; `envoy-gateway-config` supplies the `eg` GatewayClass and the
+EnvoyProxy template (replicas, resources, static IP, Cloudflare origin lock).
+**AGC was retired 2026-08-07** — it cost ~EUR 126/month, 52% of the subscription,
+on flat hourly meters with nothing tunable. Its code is commented out, not
+deleted; see `README.md` → "Retired: Application Gateway for Containers". A single shared `Gateway` (`ddot-gateway` in `news-digest`) terminates
 TLS; `HTTPRoute`s attach to it: the app at `/` (`manifests/news-digest/httproute.yaml`)
 and Grafana at `/grafana` (`manifests/monitoring/grafana-httproute.yaml`, cross-namespace).
 An HTTP→HTTPS 301 redirect route replaces the old nginx force-ssl-redirect annotation.
@@ -95,10 +98,11 @@ key-based external APIs.
   pinned pip versions. Acceptable for dev/test; a production version would use
   custom images in ACR.
 - NetworkPolicy restricts postgres access to API and worker pods only. Public
-  ingress to the frontend is allowed from the **AGC delegated subnet CIDR**
-  (`ipBlock`, not a namespaceSelector) because AGC delivers traffic from
-  `snet-alb`, not from an in-cluster controller pod. Keep the CIDR in
-  `networkpolicy.yaml` in sync with `snet-alb` in infra-terraform.
+  the frontend has **no** NetworkPolicy (an ipBlock to the ingress source proved
+  unreliable under Cilium). The origin lock lives at the edge instead, as
+  `loadBalancerSourceRanges` on the Envoy Service, which AKS renders into NSG
+  rules — keep that Cloudflare list in `manifests/envoy-gateway/gatewayclass.yaml`
+  in sync with `cloudflare_ipv4` in infra-terraform.
 - The **frontend** assets live in two ConfigMaps (`frontend-assets`,
   `frontend-nginx`) mounted as **directories** (not subPath), so edits propagate
   to the running pod automatically — no rollout restart needed. Still bump
@@ -150,8 +154,8 @@ manifests/
   news-digest/                Daily Dose of Tech application
     namespace.yaml            Namespace with workload-identity label
     serviceaccount.yaml       ServiceAccount with Managed Identity annotation (fill after tf apply)
-    networkpolicy.yaml        Restrict postgres + api; allow frontend from AGC subnet
-    gateway.yaml              Gateway API Gateway (AGC); fill alb-id after tf apply
+    networkpolicy.yaml        Restrict postgres + api (identity-based podSelectors)
+    gateway.yaml              Gateway API Gateway (Envoy, GatewayClass `eg`)
     httproute.yaml            HTTPRoutes: app at / + HTTP→HTTPS redirect
     certificate.yaml          cert-manager Certificate → dailydoseoftech-tls Secret
     postgres/                 StatefulSet, Service, Secret (dev placeholder)
@@ -172,24 +176,19 @@ manifests/
       AI Services **v1 API** base URL (`https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/`)
       and `OPENAI_DEPLOYMENT` to `gpt-5.4-mini`. The app calls AI Services directly; the
       Foundry Hub is provisioned but NOT in the inference path (no Hub connection needed).
-- [ ] After `terraform apply`: paste `alb_controller_client_id` into `apps/alb-controller.yaml`
-      (`albController.podIdentity.clientID`) and `alb_id` into `manifests/news-digest/gateway.yaml`
-      (`alb.networking.azure.io/alb-id`). If `snet-alb` is not `10.0.2.0/24`, also update the
-      `ipBlock` in `manifests/news-digest/networkpolicy.yaml` (`terraform output alb_subnet_cidr`).
-- [ ] In Cloudflare dashboard: SSL/TLS → set mode to Full (strict). Point both records at the
-      **Gateway's runtime FQDN** as a CNAME (CNAME-flattening handles the apex), then keep
-      orange-cloud proxy enabled on both. Get the FQDN from the Gateway status (the ALB
-      controller manages the frontend, so it is NOT a terraform output):
-      `kubectl get gateway ddot-gateway -n news-digest -o jsonpath='{.status.addresses[0].value}'`
+- [x] Ingress migrated from AGC to Envoy Gateway (2026-08-07). Cloudflare: apex is an
+      **A record → `terraform output ingress_public_ip`** (20.91.207.188), `www` a CNAME to
+      the apex, orange-cloud proxy on both, SSL/TLS mode **Full (strict)**. The AGC code is
+      commented out rather than deleted — restore checklist in `README.md`.
 - [ ] After `terraform apply` (security pass): paste `secrets_sync_client_id` into the
       **monitoring + cert-manager** `secret-provider-class.yaml`, `service-account.yaml`,
       and `secret-sa.yaml` (replaces the old shared clientID — those pods now use a
       secrets-only identity). The news-digest SA/SPC keep `managed_identity_client_id`.
-- [ ] After `terraform apply` (security pass): add `manifests/news-digest/waf.yaml`
-      (`WebApplicationFirewallPolicy` targeting `ddot-gateway`) with
-      `webApplicationFirewall.id = terraform output waf_policy_id`. Template + rationale
-      in `infra-terraform/whatnext.md` (kept out of the repo until the policy exists so
-      Argo never pushes an invalid id at the live Gateway).
+- [x] Azure WAF retired with AGC. It was never in force: the `WAFPolicy` CR sat at
+      `Deployment=False` for 52 days and no WAF meter ever billed, so neither the OWASP
+      ruleset nor its Cloudflare origin-lock rule ever applied. WAF now lives at
+      Cloudflare; the origin lock is `loadBalancerSourceRanges` on the Envoy Service
+      (rendered into NSG rules, and verifiable from outside). See `SECURITY.md`.
 - [x] Cloudflare `cloudflare-api-token` granted **Zone:Read + Analytics:Read** (token
       value unchanged). Site-traffic metrics now flow via the `cf-analytics` CronJob →
       Pushgateway → Prometheus (`ddot_cloudflare_*`), shown in the Grafana "Site Traffic
