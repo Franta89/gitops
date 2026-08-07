@@ -182,6 +182,70 @@ kubectl exec -n news-digest postgres-0 -c postgres -- sh -c \
   diversification, empty-area relaxed retry, rank clamp, wider look-back windows,
   and directory-mounted frontend ConfigMaps (auto-propagate, no restart).
 
+## Retired: Application Gateway for Containers
+
+Ingress moved from **Azure Application Gateway for Containers (AGC)** to
+**Envoy Gateway** running in-cluster on **2026-08-07**. Nothing was deleted — the
+AGC code is intact and commented out, so it can be brought back.
+
+### Why
+
+AGC cost **~EUR 126/month — 52% of the entire subscription** — and none of it
+could be tuned away, because almost all of it was fixed hourly charges that bill
+identically at zero traffic:
+
+| Meter | EUR/mo | Share |
+| ----- | -----: | ----: |
+| Standard Association (mandatory, one minimum) | 97.30 | 77.0% |
+| Standard AGC (traffic controller) | 13.71 | 10.9% |
+| Standard Frontend | 8.09 | 6.4% |
+| Standard Capacity Units (the only usage-driven meter) | 7.20 | 5.7% |
+| **Total** | **126.30** | |
+
+Envoy Gateway serves the same Gateway API objects from a pod, exposed through the
+AKS `kubernetes` Standard Load Balancer that already existed with **0 rules** on
+it. The only new Azure charge is the static public IP (~EUR 3/month), so the
+saving is roughly **EUR 123/month**.
+
+### What is commented out (not deleted)
+
+| Where | What |
+| ----- | ---- |
+| `infra-terraform/main.tf` | the `app_gateway_containers` **module call** |
+| `infra-terraform/outputs.tf` | `alb_id`, `alb_controller_client_id`, `waf_policy_id` |
+| `apps/alb-controller.yaml` | the whole Argo Application |
+| `manifests/news-digest/waf.yaml` | the `WebApplicationFirewallPolicy` |
+| `manifests/news-digest/gateway.yaml` | the `alb-id` annotation + `azure-alb-external` class |
+
+Everything under `infra-terraform/modules/app-gateway-containers/` is **untouched
+and still valid**. Terraform only creates resources for modules that are actually
+called, so commenting the call is enough to make the whole module dormant.
+`snet-alb` (10.0.2.0/24) is deliberately kept — subnets are free, and its
+`Microsoft.ServiceNetworking` delegation is what AGC needs to come back.
+
+### To bring AGC back
+
+1. Uncomment the module call in `infra-terraform/main.tf` and the three outputs
+   in `outputs.tf`, then `terraform apply`.
+2. `terraform output alb_id` and `alb_controller_client_id`.
+3. Uncomment `apps/alb-controller.yaml`, pasting in the new `clientID`.
+4. In `manifests/news-digest/gateway.yaml`, restore the `alb-id` annotation with
+   the new id and set `gatewayClassName: azure-alb-external`.
+5. Uncomment `manifests/news-digest/waf.yaml` with the new `waf_policy_id`.
+6. **Repoint Cloudflare.** AGC generates a *new* FQDN on recreation, so the old
+   CNAME target is dead. Both records go back to CNAMEs at
+   `kubectl get gateway ddot-gateway -n news-digest -o jsonpath='{.status.addresses[0].value}'`.
+
+**Caveats if you do.** The AGC FQDN is always newly generated — it is created by
+the ALB controller per Gateway and cannot be pinned, so DNS must be updated every
+time. The Gateway API CRDs are now at **v1.5.1 experimental** (Envoy Gateway ships
+them) rather than the v1.2.1 standard bundle the ALB controller installed; that
+direction is fine, but do not downgrade them under a live Gateway. And the WAF
+policy that module creates **never actually programmed** — the `WAFPolicy` CR sat
+at `Deployment=False` for 52 days — so restoring AGC does not by itself restore a
+working WAF. See `SECURITY.md`.
+
 ## Note
+
 Strimzi chart version and the Kafka/metadataVersion fields are marked TODO —
 verify before syncing. See CLAUDE.md.

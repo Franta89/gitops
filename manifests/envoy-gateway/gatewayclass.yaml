@@ -47,6 +47,13 @@ spec:
       envoyService:
         type: LoadBalancer
         externalTrafficPolicy: Local
+        annotations:
+          # Claim the static IP created by infra-terraform (azurerm_public_ip.ingress)
+          # instead of letting AKS allocate a dynamic one. The Cloudflare A records
+          # point straight at this address, so it must survive Service recreation.
+          # The IP lives in the AKS node resource group, which is where the cloud
+          # provider looks by default — no resource-group annotation needed.
+          service.beta.kubernetes.io/azure-pip-name: pip-ingress-ddot-dev-swc-001
         # ORIGIN LOCK. All public traffic is proxied through Cloudflare, so only
         # Cloudflare edge IPs have any business reaching this Service. AKS turns
         # loadBalancerSourceRanges into NSG rules automatically, which closes the

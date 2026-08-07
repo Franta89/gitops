@@ -24,15 +24,22 @@ spec:
         - protocol: TCP
           port: 5432
 ---
-# NOTE: the frontend has NO NetworkPolicy. It is the app's public web entry point
-# and is protected at the edge (Cloudflare proxy + AGC WAF origin-lock). Pinning an
-# ipBlock to AGC's source IP proved unreliable under the Cilium dataplane (AGC enters
-# from outside the pod network and is not seen as the delegated-subnet CIDR), so
-# in-cluster ingress to the frontend is left open. The sensitive tiers — Postgres and
-# the API — remain restricted by the identity-based (podSelector) policies here.
+# NOTE: the frontend has NO NetworkPolicy. It is the app's public web entry point,
+# and in-cluster ingress to it is left open: pinning an ipBlock to the ingress
+# source proved unreliable under the Cilium dataplane. The sensitive tiers —
+# Postgres and the API — remain restricted by the identity-based (podSelector)
+# policies here.
+#
+# The origin lock lives at the edge instead, as loadBalancerSourceRanges on the
+# Envoy Service (manifests/envoy-gateway/gatewayclass.yaml), which AKS renders into
+# NSG rules restricting the public IP to Cloudflare's ranges. That is a real
+# control, unlike the AGC WAF origin-lock this comment used to credit: its
+# WAFPolicy CR never programmed (Deployment=False for 52 days), so it was never in
+# force. Since Envoy now enters from inside the pod network, a podSelector-based
+# policy for the frontend is finally feasible if it is ever wanted.
 #
 # Allow the frontend pods to reach the API within the namespace. Public traffic
-# reaches the API only via the frontend nginx proxy, so no AGC ipBlock is needed here.
+# reaches the API only via the frontend nginx proxy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

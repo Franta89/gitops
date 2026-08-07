@@ -10,13 +10,13 @@ backlog is tracked in `infra-terraform/whatnext.md`.
 | Layer | Control | Where |
 | ----- | ------- | ----- |
 | Edge | Cloudflare proxy (orange-cloud), SSL/TLS **Full (strict)** | Cloudflare dashboard |
-| Edge | **WAF** — Azure WAF policy, OWASP 3.2, **Prevention** mode | `infra-terraform` module `app-gateway-containers` + `manifests/news-digest/waf.yaml` |
-| Edge | **Origin lock** — AGC accepts only Cloudflare edge IPs (WAF custom rule) | same WAF policy |
-| Ingress | **Gateway API** via Azure Application Gateway for Containers (ingress-nginx retired) | `apps/alb-controller.yaml`, `manifests/news-digest/gateway.yaml` |
+| Edge | **WAF** — Cloudflare managed rules at the proxy | Cloudflare dashboard |
+| Edge | **Origin lock** — the ingress public IP accepts only Cloudflare edge ranges, enforced as NSG rules AKS renders from `loadBalancerSourceRanges` | `manifests/envoy-gateway/gatewayclass.yaml` |
+| Ingress | **Gateway API** via **Envoy Gateway**, in-cluster (AGC retired 2026-08-07; ingress-nginx before it) | `apps/envoy-gateway.yaml`, `manifests/envoy-gateway/`, `manifests/news-digest/gateway.yaml` |
 | Ingress | TLS — Let's Encrypt via **DNS-01** (Cloudflare), HTTP→HTTPS 301 redirect | `manifests/news-digest/certificate.yaml`, `httproute.yaml` |
 | Network | **NetworkPolicy enforced** (Cilium dataplane) | `infra-terraform` AKS module (`network_policy=cilium`) |
 | Network | Postgres reachable only from API/worker pods; API only from frontend (identity-based) | `manifests/news-digest/networkpolicy.yaml` |
-| Network | NSG: **no public inbound** to nodes (default DenyAllInBound); AGC enters via delegated subnet over the VNet | `infra-terraform` network module |
+| Network | NSG: public inbound to nodes restricted to **Cloudflare ranges only**, on the AKS-managed NIC NSG (both subnet and NIC NSGs must allow, so the tighter one wins) | rendered from `loadBalancerSourceRanges`; subnet NSG in `infra-terraform` network module |
 | Identity | **Workload Identity** (keyless) — no static keys/API keys anywhere | `infra-terraform` azure-ai module |
 | Identity | **Least privilege split**: app identity (OpenAI + AI Developer + KV) vs secrets-only identity (KV read) for secret-sync | azure-ai module + monitoring/cert-manager SA + SecretProviderClass |
 | Identity | Automation account scoped to the **AKS cluster**, not the resource group | `infra-terraform/automation.tf` |
@@ -28,15 +28,26 @@ backlog is tracked in `infra-terraform/whatnext.md`.
 ## Notes & intentional exceptions
 
 - **Frontend is public by design.** It is the app's web entry point and has no
-  NetworkPolicy; it is protected at the edge (Cloudflare proxy + AGC WAF origin
-  lock). An in-cluster ipBlock to AGC's source proved unreliable under Cilium, so
-  the sensitive tiers (Postgres, API) carry the identity-based policies instead.
+  NetworkPolicy; it is protected at the edge (Cloudflare proxy + the origin lock
+  above). An in-cluster ipBlock to the ingress source proved unreliable under
+  Cilium, so the sensitive tiers (Postgres, API) carry the identity-based policies
+  instead. Now that Envoy enters from inside the pod network, a podSelector policy
+  for the frontend is feasible if ever wanted.
+- **The Azure WAF was never in force.** Until 2026-08-07 this document claimed an
+  Azure WAF policy (OWASP 3.2, Prevention) plus an AGC origin lock. The policy
+  existed in Azure and the `WebApplicationFirewallPolicy` CR targeted the Gateway
+  correctly, but the ALB controller never programmed it — the CR sat at
+  `Deployment=False` / `reason=NoDeployment` for 52 days, and no WAF meter ever
+  appeared on the bill. Neither the ruleset nor the origin lock was ever applied.
+  Both roles now sit at Cloudflare and in the NSG-backed source ranges, which are
+  verifiable: `az network nsg rule list` shows the Cloudflare prefixes, and a
+  request to the origin IP from a non-Cloudflare address gets no response.
 - **NetworkPolicy enforcement requires the Cilium dataplane.** Without it (the
   pre-2026-06-16 state) every NetworkPolicy is a silent no-op. Verify with
   `az aks show … --query networkProfile.networkPolicy` (should be `cilium`).
 - **Argo CD local `admin`** is still enabled (disabling needs SSO → Entra, deferred).
   An admin-IP allowlist, if wanted, belongs at **Cloudflare** (it sees the real
-  client IP; AGC only sees the Cloudflare edge IP).
+  client IP; the origin only ever sees the Cloudflare edge IP).
 
 ## Verify the posture
 

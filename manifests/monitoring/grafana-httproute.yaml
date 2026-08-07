@@ -16,8 +16,14 @@ metadata:
   name: grafana-route
   namespace: monitoring
 spec:
+  # Both Gateways during the AGC -> Envoy cutover; drop ddot-gateway once AGC is
+  # retired. Cross-namespace attach is allowed by allowedRoutes.namespaces.from:
+  # All on each listener.
   parentRefs:
     - name: ddot-gateway
+      namespace: news-digest
+      sectionName: https
+    - name: ddot-gateway-eg
       namespace: news-digest
       sectionName: https
   hostnames:
