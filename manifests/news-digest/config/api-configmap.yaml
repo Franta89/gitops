@@ -272,6 +272,8 @@ data:
 
     # Which months have a summary — drives the month buttons on the monthly page.
     # A new month appears here on its own as soon as the CronJob writes it.
+    # Chronological (oldest first) so the UI can render the row left-to-right and
+    # each new month is simply appended on the right.
     @app.get("/api/monthly")
     def monthly_available():
         conn = get_conn()
@@ -280,7 +282,7 @@ data:
                 cur.execute("""
                     SELECT year, month, created_at
                     FROM monthly_summaries
-                    ORDER BY year DESC, month DESC
+                    ORDER BY year ASC, month ASC
                 """)
                 return [{"year": r["year"], "month": r["month"],
                          "created_at": str(r["created_at"])} for r in cur.fetchall()]

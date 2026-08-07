@@ -151,7 +151,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=16"></script>
+      <script src="/app.js?v=17"></script>
     </body>
     </html>
 
@@ -1060,13 +1060,17 @@ data:
       renderMonthPicker();
     }
 
-    // One button per generated month, newest first. The list comes from the API,
-    // so a newly generated month shows up on its own with no frontend change.
+    // One button per generated month, oldest on the left, so each new month is
+    // appended on the right. The list comes from the API already in chronological
+    // order, so a newly generated month shows up on its own with no frontend
+    // change; sorted here too so the row never depends on the API's ordering.
     function renderMonthPicker() {
       var picker = document.getElementById("monthPicker");
       var t = T[lang];
       picker.innerHTML = "";
-      availableMonths.forEach(function(m) {
+      availableMonths.slice().sort(function(a, b) {
+        return a.year - b.year || a.month - b.month;
+      }).forEach(function(m) {
         var btn = document.createElement("button");
         btn.textContent = t.monthNames[m.month - 1] + " " + m.year;
         if (currentMonthly && m.year === currentMonthly.year
