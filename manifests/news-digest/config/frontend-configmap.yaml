@@ -105,6 +105,7 @@ data:
 
         <div id="monthlyView" style="display:none">
           <button class="back-btn" id="backBtn"></button>
+          <div class="month-picker" id="monthPicker"></div>
           <div class="monthly-content">
             <h2 id="monthlyTitle"></h2>
             <div id="monthlyContent"></div>
@@ -150,7 +151,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=15"></script>
+      <script src="/app.js?v=16"></script>
     </body>
     </html>
 
@@ -462,6 +463,26 @@ data:
     }
     .back-btn:hover { background: var(--btn-muted-hover); }
 
+    /* One button per generated month; wraps as the archive grows. */
+    .month-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .month-picker button {
+      background: var(--btn-muted);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      padding: 0.4rem 0.9rem;
+    }
+    .month-picker button:hover { background: var(--btn-muted-hover); }
+    .month-picker button.active {
+      background: var(--btn-primary);
+      color: #fff;
+    }
+    .month-picker button.active:hover { background: var(--btn-primary-hover); }
+
     .monthly-content {
       background: var(--bg-secondary);
       border: 1px solid var(--border);
@@ -693,6 +714,9 @@ data:
         errorDigest:    "Could not load digest:",
         errorMonthly:   "Monthly summary not available:",
         monthlyTitle:   function(y, m) { return "Monthly Summary -- " + y + "-" + String(m).padStart(2,"0"); },
+        monthNames:     ["January","February","March","April","May","June",
+                         "July","August","September","October","November","December"],
+        noMonthlies:    "No monthly summaries have been generated yet.",
         tagline:        "AI-curated . Published daily at 07:00 CET",
         footerText:     "Daily Dose of Tech -- dev/test project -- AI-generated content, verify with primary sources",
         themeLight:     "Light",
@@ -741,6 +765,9 @@ data:
         errorDigest:    "Prehled se nepodarilo nacist:",
         errorMonthly:   "Mesicni prehled neni dostupny:",
         monthlyTitle:   function(y, m) { return "Mesicni prehled -- " + y + "-" + String(m).padStart(2,"0"); },
+        monthNames:     ["Leden","Unor","Brezen","Duben","Kveten","Cerven",
+                         "Cervenec","Srpen","Zari","Rijen","Listopad","Prosinec"],
+        noMonthlies:    "Zatim nebyl vygenerovan zadny mesicni prehled.",
         tagline:        "AI-kuratorovano . Publikovano denne v 07:00 SEC",
         footerText:     "Daily Dose of Tech -- vyvojovy projekt -- obsah generovany AI, overujte primarnimi zdroji",
         themeLight:     "Svetly",
@@ -798,6 +825,8 @@ data:
 
     var currentDate = null;
     var currentDigestData = null;
+    var currentMonthly = null;
+    var availableMonths = [];
     var lang  = localStorage.getItem("ddot-lang")  || "en";
     var theme = localStorage.getItem("ddot-theme") || "dark";
 
@@ -1018,6 +1047,37 @@ data:
       }
     }
 
+    // Renders whichever monthly summary is currently loaded, in the active
+    // language. Both languages arrive in one payload, so the EN/CZ toggle
+    // re-renders from memory without another request.
+    function renderMonthly() {
+      if (!currentMonthly) return;
+      var t = T[lang];
+      document.getElementById("monthlyTitle").textContent =
+        t.monthlyTitle(currentMonthly.year, currentMonthly.month);
+      document.getElementById("monthlyContent").textContent =
+        lang === "cs" ? currentMonthly.content_cs : currentMonthly.content;
+      renderMonthPicker();
+    }
+
+    // One button per generated month, newest first. The list comes from the API,
+    // so a newly generated month shows up on its own with no frontend change.
+    function renderMonthPicker() {
+      var picker = document.getElementById("monthPicker");
+      var t = T[lang];
+      picker.innerHTML = "";
+      availableMonths.forEach(function(m) {
+        var btn = document.createElement("button");
+        btn.textContent = t.monthNames[m.month - 1] + " " + m.year;
+        if (currentMonthly && m.year === currentMonthly.year
+            && m.month === currentMonthly.month) {
+          btn.classList.add("active");
+        }
+        btn.addEventListener("click", function() { loadMonthly(m.year, m.month); });
+        picker.appendChild(btn);
+      });
+    }
+
     // No arguments = whatever the newest stored summary is. Asking for the
     // current month always 404s: it is only summarised on the 1st of the month
     // after it ends.
@@ -1026,13 +1086,15 @@ data:
       document.getElementById("loadingMsg").style.display  = "block";
       document.getElementById("loadingMsg").textContent    = T[lang].loadingMonthly;
       try {
-        var data = await api(year && month
-          ? "/api/monthly/" + year + "/" + month
-          : "/api/monthly/latest");
+        var results = await Promise.all([
+          api(year && month ? "/api/monthly/" + year + "/" + month
+                            : "/api/monthly/latest"),
+          api("/api/monthly")
+        ]);
+        currentMonthly  = results[0];
+        availableMonths = results[1];
         document.getElementById("loadingMsg").style.display  = "none";
-        document.getElementById("monthlyTitle").textContent  =
-          T[lang].monthlyTitle(data.year, data.month);
-        document.getElementById("monthlyContent").textContent = data.content;
+        renderMonthly();
         document.getElementById("monthlyView").style.display = "block";
       } catch (e) {
         showError(T[lang].errorMonthly + " " + e.message);
@@ -1094,6 +1156,9 @@ data:
       applyLang();
       if (currentDigestData && document.getElementById("dailyView").style.display !== "none") {
         renderDigest(currentDigestData);
+      }
+      if (currentMonthly && document.getElementById("monthlyView").style.display !== "none") {
+        renderMonthly();
       }
     });
 

@@ -258,6 +258,35 @@ data:
         finally:
             conn.close()
 
+    def _monthly_payload(row):
+        # Both languages travel together so the UI's EN/CZ toggle re-renders from
+        # memory instead of refetching. content_cs falls back to English for months
+        # summarised before the Czech column existed.
+        return {
+            "year": row["year"],
+            "month": row["month"],
+            "content": row["content"],
+            "content_cs": _pron_display(row.get("content_cs") or "") or row["content"],
+            "created_at": str(row["created_at"]),
+        }
+
+    # Which months have a summary — drives the month buttons on the monthly page.
+    # A new month appears here on its own as soon as the CronJob writes it.
+    @app.get("/api/monthly")
+    def monthly_available():
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT year, month, created_at
+                    FROM monthly_summaries
+                    ORDER BY year DESC, month DESC
+                """)
+                return [{"year": r["year"], "month": r["month"],
+                         "created_at": str(r["created_at"])} for r in cur.fetchall()]
+        finally:
+            conn.close()
+
     # The newest summary that actually exists. The UI cannot compute this date
     # itself: the current month is only summarised on the 1st of the NEXT month,
     # so "now" is never a valid key, and a month whose job failed would leave a
@@ -270,7 +299,7 @@ data:
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT year, month, content, created_at
+                    SELECT year, month, content, content_cs, created_at
                     FROM monthly_summaries
                     ORDER BY year DESC, month DESC
                     LIMIT 1
@@ -279,12 +308,7 @@ data:
             if not row:
                 raise HTTPException(status_code=404,
                                     detail="Monthly summary not yet generated")
-            return {
-                "year": row["year"],
-                "month": row["month"],
-                "content": row["content"],
-                "created_at": str(row["created_at"]),
-            }
+            return _monthly_payload(row)
         finally:
             conn.close()
 
@@ -296,7 +320,7 @@ data:
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT content, created_at
+                    SELECT year, month, content, content_cs, created_at
                     FROM monthly_summaries
                     WHERE year = %s AND month = %s
                 """, (year, month))
@@ -304,12 +328,7 @@ data:
             if not row:
                 raise HTTPException(status_code=404,
                                     detail="Monthly summary not yet generated")
-            return {
-                "year": year,
-                "month": month,
-                "content": row["content"],
-                "created_at": str(row["created_at"]),
-            }
+            return _monthly_payload(row)
         finally:
             conn.close()
 
