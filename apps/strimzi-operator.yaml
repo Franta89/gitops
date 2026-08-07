@@ -17,6 +17,17 @@ spec:
       releaseName: strimzi
       values: |
         watchAnyNamespace: false
+        # The chart defaults to 200m CPU, but the operator idles at ~9m on this
+        # single-node sandbox — it only does work when a Kafka CR changes. The
+        # request is what blocks scheduling, so 200m of reservation for 9m of use
+        # priced out other workloads on a 2-vCPU node. Raise for prod.
+        resources:
+          requests:
+            cpu: 50m
+            memory: 384Mi
+          limits:
+            cpu: "1"
+            memory: 384Mi
   destination:
     server: https://kubernetes.default.svc
     namespace: kafka

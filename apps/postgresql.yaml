@@ -28,9 +28,10 @@ spec:
         primary:
           persistence:
             size: 1Gi
+          # The puzzle DB idles at ~8m CPU; 50m was reserved but unused.
           resources:
             requests:
-              cpu: 50m
+              cpu: 25m
               memory: 128Mi
             limits:
               memory: 256Mi

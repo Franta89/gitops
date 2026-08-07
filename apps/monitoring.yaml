@@ -29,9 +29,10 @@ spec:
           persistence:
             enabled: true
             size: 1Gi
+          # Grafana idles at ~3m CPU here; 50m was reserving 16x its actual use.
           resources:
             requests:
-              cpu: 50m
+              cpu: 25m
               memory: 128Mi
             limits:
               memory: 256Mi
