@@ -75,10 +75,12 @@ curl -sI http://dailydoseoftech.org | head -1            # 301 -> https
 ## Open from the 2026-09-03 review
 
 Full write-up in [`20260903_security_findings.md`](20260903_security_findings.md).
+The Terraform side is **applied and verified** against Azure; state has been moved
+to an Entra-only blob backend with versioning and soft delete, and the local
+plaintext copies were shredded.
 
-- **Terraform state is local and unencrypted** and holds live secrets including the
-  AKS cluster-admin key. Needs an operator with `az login` to migrate to the blob
-  backend.
+Remaining, both in this repo and both deliberately staged rather than auto-synced:
+
 - **Postgres runs on Azure Files (SMB)**, which PostgreSQL does not support, with
   `reclaimPolicy: Delete` and no backup. Replacement class and cutover procedure
   are prepared in `manifests/news-digest/postgres/storageclass-managed.yaml`; the

@@ -11,7 +11,7 @@ Severity: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low
 
 | # | Sev | Location | Issue | Status |
 | - | --- | -------- | ----- | ------ |
-| 1 | 🔴 | `infra-terraform/terraform.tfstate` (+2 backups) | Unencrypted local state holds live secrets | open |
+| 1 | 🔴 | `infra-terraform/terraform.tfstate` (+2 backups) | Unencrypted local state holds live secrets | fixed |
 | 2 | 🔴 | `apps/postgresql.yaml` | Hardcoded Postgres password in git | fixed |
 | 3 | 🔴 | `manifests/news-digest/postgres/` | Postgres on Azure Files + `reclaimPolicy: Delete` + no backup | prepared |
 | 4 | 🟠 | `config/aggregator-configmap.yaml`, `config/frontend-configmap.yaml` | Unvalidated LLM/RSS URL rendered into `href` → stored XSS | fixed |
@@ -52,11 +52,30 @@ They are correctly gitignored and *not* in git history (verified), but they sit
 unencrypted on a workstation with no locking, no versioning, and no recovery path
 if the disk is lost.
 
-**Fix:** run `./bootstrap.sh`, uncomment the backend block, `terraform init
--migrate-state`, then shred the local copies. Requires an Azure login, so it is
-left to the operator — see the runbook.
+**Status: fixed and verified.** State now lives in Azure Blob Storage
+(`rg-tfstate-dev-swc-001` / `stkafkastatedevswc001`, container `tfstate`).
 
-**Status: open** (operator action — needs `az login`).
+The state account is deliberately harder than a default one, because this
+particular blob holds a cluster-admin credential:
+
+- **shared key access disabled** — the only way in is an Entra identity holding
+  `Storage Blob Data Contributor`. This is why `backend.tf` sets
+  `use_azuread_auth = true` and `providers.tf` sets `storage_use_azuread = true`.
+- **blob versioning on** — a truncated or corrupted state can be rolled back.
+- **30-day soft delete** on blobs and containers — an accidental delete is
+  recoverable, which plain local state never was.
+- TLS 1.2 minimum, HTTPS-only, no public blob access.
+
+Migration was verified before anything was deleted: 50 resources in, 50 resources
+out, and the uploaded blob matched the local file byte-for-byte (155,873 bytes).
+Only then were `terraform.tfstate`, both backups, the saved plan files and the
+temporary copies **overwritten with random bytes and unlinked**. `terraform state
+list` now reads 54 resources straight from the blob with no local state present.
+
+`bootstrap.sh` was rewritten to reproduce this exact account, including the RBAC
+grant and the propagation retry loop it needs. `.gitignore` also gained
+`*.tfplan` / `tfplan*.binary` — saved plans embed full resource values including
+secrets and were previously not ignored.
 
 ## 2. 🔴 Hardcoded Postgres password in git
 
@@ -231,3 +250,78 @@ standard ("Pin all provider versions in `versions.tf`. No floating versions.").
   wedged postmaster would never be restarted. **Fixed.**
 - `terraform.tfvars.example` was missing `grafana_admin_password`, so a fresh clone
   fails at plan time with an unhelpful prompt. **Fixed.**
+
+---
+
+## Addendum — issues found while applying (2026-09-03)
+
+Running a real `terraform plan`/`apply` against Azure surfaced three defects that
+static validation could not. All are fixed.
+
+### A. Redundant `depends_on` forced needless role-assignment replacement
+
+`module "azure_ai"` carried `depends_on = [module.aks]`. That is redundant — the
+module already consumes `module.aks.oidc_issuer_url`, which orders it implicitly —
+but it is not harmless: an explicit module-level `depends_on` defers **every data
+source in the module** to apply time whenever anything in `module.aks` changes.
+
+Because this review modified the AKS resource, `data.azurerm_client_config.current`
+became unknown at plan time, so `object_id` and `tenant_id` were unknown, which
+forced replacement of `azurerm_role_assignment.terraform_kv_admin` — the very grant
+that authorises writing the new `puzzle-postgres-password` secret in the same
+apply. That is a plausible mid-apply 403.
+
+Removing the redundant `depends_on` took the plan from
+`7 add / 4 change / 3 destroy` to `5 add / 3 change / 1 destroy`.
+
+### B. Budget `start_date` goes stale and breaks fresh applies
+
+Azure rejects a monthly budget whose `start_date` precedes the current month:
+
+```text
+400: Start date for monthly time grain should not be prior to current month.
+```
+
+`var.budget_start_date` is the fixed literal `2026-06-01T00:00:00Z`, so the new
+`rg-ddot` budget failed to create. The existing `rg-kafka` budget only survives
+because it was created back when that date was valid — any fresh apply of this
+configuration would fail the same way.
+
+The ddot budget now anchors to the first of the current month via
+`formatdate("YYYY-MM-01'T'00:00:00'Z'", timestamp())` with
+`lifecycle { ignore_changes = [time_period] }`, so it is valid on creation and does
+not churn every month afterwards. The kafka budget was deliberately left alone —
+it is already created and working, and rewriting its start date risks the same 400.
+
+### C. Disabling storage shared keys broke the provider's own read-back
+
+With `shared_access_key_enabled = false`, the apply succeeded but the post-apply
+refresh failed:
+
+```text
+403 Key based authentication is not permitted on this storage account.
+```
+
+The azurerm provider was still using key auth to read queue/table properties.
+Fixed with `storage_use_azuread = true` in the provider block. Note the setting had
+already taken effect on the account — only the read-back failed — so this presented
+as a confusing partial failure rather than a rollback.
+
+### Post-apply verification
+
+| Check | Result |
+| --- | --- |
+| `terraform plan -detailed-exitcode` | `0` — no drift |
+| Role assignments on the AKS cluster | only `AKS Start Stop Operator (kafka-dev-swc-001)`; Contributor gone |
+| AI Services `disableLocalAuth` | `true` |
+| Foundry storage `allowSharedKeyAccess` | `false` |
+| AKS upgrade channels | `patch` / `NodeImage`, cluster `Running` |
+| Budgets | `budget-kafka-*` €50, `budget-ddot-*` €30 |
+| `puzzle-postgres-password` in Key Vault | present, enabled |
+| `GET /` | 200 |
+| `GET /api/health`, `/api/digest/today` | 200, 54 KB of content |
+| `GET /api/audio?...&category=ai_development` | **200, 1.8 MB `audio/mpeg`** |
+
+The audio check is the meaningful one: it exercises Azure Speech synthesis *and*
+the blob audio cache end-to-end, proving that disabling local auth on AI Services
+and shared keys on the storage account did not break the keyless path.
