@@ -1,5 +1,7 @@
 # PostgreSQL for storing puzzle game events.
-# TODO: move auth.password to an AKV secret before any public exposure.
+# Credentials come from Azure Key Vault via the AKV CSI driver — the
+# puzzle-postgresql Secret is materialised by the puzzle-secrets Application
+# (wave 2, manifests/puzzle/). Nothing sensitive in this file.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -23,8 +25,12 @@ spec:
           repository: bitnamilegacy/postgresql
         auth:
           username: puzzle
-          password: puzzle-dev-changeme
           database: puzzle_events
+          # The password previously lived here in plaintext and was committed to
+          # git. It now comes from Key Vault: the puzzle-secrets Application syncs
+          # kv-ddot-dev-swc-001/puzzle-postgres-password into this Secret, which
+          # carries both keys the chart expects (postgres-password, password).
+          existingSecret: puzzle-postgresql
         primary:
           persistence:
             size: 1Gi

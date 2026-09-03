@@ -38,6 +38,11 @@ data:
             proxy_pass http://api-svc:8000/api/;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
+            # Carry the real client IP through to the API so its audio budget can
+            # be applied per caller. Without these the API only ever sees this
+            # nginx pod and every visitor shares one bucket.
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
             # A cold "Listen all" synthesizes 6 areas before returning; allow time.
             proxy_read_timeout 180s;
             proxy_send_timeout 180s;
@@ -151,7 +156,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=17"></script>
+      <script src="/app.js?v=18"></script>
     </body>
     </html>
 
@@ -985,7 +990,7 @@ data:
       return '<div class="article">' +
         '<div class="article-rank">#' + item.rank + '</div>' +
         '<div class="article-title">' +
-          '<a href="' + escHtml(item.url) + '" target="_blank" rel="noopener">' +
+          '<a href="' + escHtml(safeUrl(item.url)) + '" target="_blank" rel="noopener noreferrer">' +
             escHtml(item.title) +
           '</a>' +
         '</div>' +
@@ -1032,6 +1037,21 @@ data:
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+    }
+
+    // escHtml makes a string safe as HTML *text*, but an href is a different
+    // context: "javascript:alert(1)" contains no HTML metacharacters and survives
+    // escaping intact. Article URLs originate in third-party RSS feeds and pass
+    // through the model, so the scheme is checked explicitly here. Anything that
+    // is not an ordinary http(s) link degrades to a dead "#".
+    function safeUrl(url) {
+      try {
+        var parsed = new URL(String(url), window.location.origin);
+        if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+          return parsed.href;
+        }
+      } catch (e) {}
+      return "#";
     }
 
     async function loadDigest(dateStr) {

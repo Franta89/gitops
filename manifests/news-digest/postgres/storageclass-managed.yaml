@@ -1,0 +1,51 @@
+# Azure Disk StorageClass for PostgreSQL.
+#
+# WHY THIS EXISTS
+# The database currently runs on `azurefile-postgres` (see storageclass.yaml),
+# which is Azure Files — an SMB share. PostgreSQL is not supported on SMB: its
+# durability guarantees depend on POSIX fsync and file-locking semantics that the
+# protocol does not reproduce, so the failure mode is silent data corruption
+# rather than a clean error. Azure Disk is the correct backing store for a
+# single-writer database.
+#
+# It also fixes two secondary problems in the old class:
+#   * reclaimPolicy: Delete    -> Retain. With Argo's `prune: true`, a bad sync
+#     that removes the PVC currently destroys the database with no way back and
+#     no backup. Retain keeps the underlying disk after PVC deletion.
+#   * volumeBindingMode: Immediate -> WaitForFirstConsumer, so the disk is created
+#     in the same zone as the pod that will mount it.
+#
+# NOT YET IN USE — MIGRATION REQUIRED
+# StorageClasses and StatefulSet volumeClaimTemplates are both immutable, so this
+# cannot be switched by editing manifests: Argo would fail the sync. The cutover
+# is a deliberate operator action (a few minutes of downtime for the digest API):
+#
+#   1. Back up:
+#        kubectl exec -n news-digest postgres-0 -- \
+#          pg_dump -U newsdigest newsdigest > digest.sql
+#   2. Point the StatefulSet at this class:
+#        edit postgres/statefulset.yaml -> storageClassName: managed-postgres
+#   3. Drop the old objects, keeping the data safe in digest.sql:
+#        kubectl delete statefulset postgres -n news-digest --cascade=orphan
+#        kubectl delete pod postgres-0 -n news-digest
+#        kubectl delete pvc postgres-data-postgres-0 -n news-digest
+#   4. Let Argo re-sync (or `kubectl apply`) so the StatefulSet is recreated with a
+#      fresh PVC on Azure Disk, then wait for postgres-0 to be Ready.
+#   5. Restore:
+#        kubectl exec -i -n news-digest postgres-0 -- \
+#          psql -U newsdigest newsdigest < digest.sql
+#   6. Verify: https://dailydoseoftech.org loads today's digest, and
+#        kubectl get pvc -n news-digest   # bound to managed-postgres
+#
+# Losing the digest history is not catastrophic — the CronJob republishes daily —
+# but the dump makes the cutover reversible.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: managed-postgres
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: StandardSSD_LRS
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true

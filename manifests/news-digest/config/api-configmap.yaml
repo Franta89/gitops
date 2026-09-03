@@ -9,6 +9,7 @@ data:
     import re
     import json
     import html
+    import time
     import logging
     import threading
     from concurrent.futures import ThreadPoolExecutor
@@ -465,6 +466,13 @@ data:
         return _blob_client().get_container_client(
             AUDIO_CONTAINER).get_blob_client(name)
 
+    def _synth_guarded(ssml):
+        # Every synthesis goes through the global semaphore, so the number of paid
+        # Speech calls in flight is bounded no matter how many requests arrive or
+        # how wide the per-area thread pool fans out.
+        with _synth_slots:
+            return _synthesize(ssml)
+
     def _store(blob, data, content_type, what):
         try:  # caching is best-effort; the caller still serves the result
             blob.upload_blob(data, overwrite=True,
@@ -497,7 +505,7 @@ data:
         vname = VOICES[(voice, lang)]
         with ThreadPoolExecutor(max_workers=4) as ex:
             clips = list(ex.map(
-                lambda sg: _synthesize(_build_ssml(sg["text"], vname, lang)), segs))
+                lambda sg: _synth_guarded(_build_ssml(sg["text"], vname, lang)), segs))
         markers, buf, offset = [], [], 0
         for sg, clip in zip(segs, clips):
             markers.append({"t": _seconds(offset), "type": sg["type"], "label": sg["label"]})
@@ -544,10 +552,77 @@ data:
         log.info("audio assembled %s (%d bytes, %d markers)", base, len(mp3), len(markers))
         return mp3, manifest
 
+    # --- Cost guardrails for the paid Speech path ----------------------------
+    # /api/audio is public and unauthenticated, and every cache MISS spends money
+    # at Azure Speech and writes a blob. Three controls, cheapest first:
+    #   1. single-flight — concurrent misses for the same clip synthesize once
+    #      instead of once per request;
+    #   2. a global semaphore — bounds how much synthesis can run at any moment,
+    #      capping the worst-case burn rate and the memory held in MP3 buffers;
+    #   3. a per-client budget — one caller cannot walk the
+    #      (date x category x voice x lang) space and bill the account.
+    # State is per-process: exact today (the API runs a single replica) and
+    # degrading to per-replica if it is ever scaled out. The durable control still
+    # belongs at Cloudflare, which is the only layer that sees the real client IP.
+    SYNTH_MAX_CONCURRENCY = int(os.environ.get("SYNTH_MAX_CONCURRENCY", "2"))
+    SYNTH_RATE_LIMIT      = int(os.environ.get("SYNTH_RATE_LIMIT", "12"))
+    SYNTH_RATE_WINDOW_S   = int(os.environ.get("SYNTH_RATE_WINDOW_S", "600"))
+
+    _synth_slots = threading.BoundedSemaphore(SYNTH_MAX_CONCURRENCY)
+    _flight_lock = threading.Lock()
+    _flights = {}
+    _rate_lock = threading.Lock()
+    _rate_hits = {}
+
+    def _client_key(request):
+        # Public traffic reaches the API through Cloudflare -> Envoy -> frontend
+        # nginx, so request.client.host is always the nginx pod. The real client is
+        # in CF-Connecting-IP (set by Cloudflare) or X-Forwarded-For (appended by
+        # nginx). No such header means the caller is in-cluster — the audio warm-up
+        # CronJob talks to api-svc directly — and is not rate limited.
+        for header in ("cf-connecting-ip", "x-forwarded-for"):
+            value = request.headers.get(header)
+            if value and value.strip():
+                return value.split(",")[0].strip()
+        return None
+
+    def _rate_limit(request):
+        key = _client_key(request)
+        if key is None:
+            return
+        now = time.monotonic()
+        cutoff = now - SYNTH_RATE_WINDOW_S
+        with _rate_lock:
+            hits = [t for t in _rate_hits.get(key, []) if t > cutoff]
+            if len(hits) >= SYNTH_RATE_LIMIT:
+                _rate_hits[key] = hits
+                retry_after = int(hits[0] + SYNTH_RATE_WINDOW_S - now) + 1
+                log.warning("audio rate limit hit for %s", key)
+                raise HTTPException(status_code=429,
+                                    detail="Too many audio requests",
+                                    headers={"Retry-After": str(retry_after)})
+            hits.append(now)
+            _rate_hits[key] = hits
+            if len(_rate_hits) > 5000:  # bound memory against spoofed-header churn
+                for k in [k for k, v in _rate_hits.items() if max(v) <= cutoff]:
+                    _rate_hits.pop(k, None)
+
     def _ensure(d, category, voice, lang):
-        if category == "all":
-            return _ensure_all(d, voice, lang)
-        return _ensure_area(d, category, voice, lang)
+        # Single-flight: the first request for a clip synthesizes it, the rest wait
+        # and then hit the cache the first one just populated.
+        key = (d.isoformat(), category, voice, lang)
+        with _flight_lock:
+            lock = _flights.get(key)
+            if lock is None:
+                lock = _flights[key] = threading.Lock()
+            if len(_flights) > 500:  # keys are (date x category x voice x lang)
+                for k, v in list(_flights.items()):
+                    if k != key and not v.locked():
+                        _flights.pop(k, None)
+        with lock:
+            if category == "all":
+                return _ensure_all(d, voice, lang)
+            return _ensure_area(d, category, voice, lang)
 
     def _validate(category, voice, lang, d_str):
         if category != "all" and category not in AREA_ORDER:
@@ -603,6 +678,7 @@ data:
               voice: str = "f",
               lang: str = "en"):
         d = _validate(category, voice, lang, d_str)
+        _rate_limit(request)
         mp3, _m = _ensure(d, category, voice, lang)
         if mp3 is None:
             raise HTTPException(status_code=404,
@@ -613,7 +689,8 @@ data:
     # labels, plus total duration. Reads the cached manifest only (no MP3 download)
     # on the common path; synthesizes if needed.
     @app.get("/api/audio/markers")
-    def audio_markers(d_str: str = Query(alias="date"),
+    def audio_markers(request: Request,
+                      d_str: str = Query(alias="date"),
                       category: str = Query(...),
                       voice: str = "f",
                       lang: str = "en"):
@@ -623,6 +700,9 @@ data:
             return json.loads(_audio_blob(base + ".json").download_blob().readall())
         except ResourceNotFoundError:
             pass
+        # Cache miss here also triggers paid synthesis, so it carries the same
+        # budget as /api/audio. The cached path above is free and stays unmetered.
+        _rate_limit(request)
         _mp3, manifest = _ensure(d, category, voice, lang)
         if manifest is None:
             raise HTTPException(status_code=404,

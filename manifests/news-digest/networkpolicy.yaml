@@ -1,4 +1,4 @@
-# Restrict which pods may reach PostgreSQL.
+# Restrict which pods may reach PostgreSQL, and where PostgreSQL may go.
 # Only the API deployment and CronJob worker pods are allowed on port 5432.
 # All other ingress to postgres is denied by default.
 apiVersion: networking.k8s.io/v1
@@ -12,6 +12,7 @@ spec:
       app: postgres
   policyTypes:
     - Ingress
+    - Egress
   ingress:
     - from:
         - podSelector:
@@ -23,6 +24,23 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+  # The database has no reason to originate traffic. Listing Egress at all flips
+  # the pod to default-deny outbound; DNS is the only thing kept open (libpq and
+  # the entrypoint scripts resolve names at startup). Without this a compromised
+  # postgres pod could reach any pod, any Service, and the whole internet.
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
 ---
 # NOTE: the frontend has NO NetworkPolicy. It is the app's public web entry point,
 # and in-cluster ingress to it is left open: pinning an ipBlock to the ingress
@@ -51,6 +69,7 @@ spec:
       app: news-api
   policyTypes:
     - Ingress
+    - Egress
   ingress:
     - from:
         - podSelector:
@@ -63,3 +82,40 @@ spec:
       ports:
         - protocol: TCP
           port: 8000
+  # The API legitimately calls out to the internet (Azure AI Services, the Speech
+  # REST endpoint, Blob storage, and Entra for tokens), so egress cannot simply be
+  # closed. What it must NOT do is roam the cluster: previously it could reach any
+  # pod or Service in any namespace. These rules allow DNS, Postgres, and public
+  # HTTPS only — with RFC1918 and the link-local range (IMDS, 169.254.169.254)
+  # carved out, so "the internet" cannot be used as a path back inside.
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

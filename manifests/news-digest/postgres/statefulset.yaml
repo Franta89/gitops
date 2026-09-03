@@ -79,6 +79,17 @@ spec:
               command: ["pg_isready", "-U", "newsdigest"]
             initialDelaySeconds: 10
             periodSeconds: 5
+          # Readiness alone only removes the pod from the Service; a wedged
+          # postmaster would sit there forever. Liveness restarts it. Thresholds are
+          # deliberately slacker than readiness so a slow recovery (WAL replay after
+          # an unclean shutdown) is not mistaken for a hang.
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "newsdigest"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
       volumes:
         - name: akv-secrets
           csi:
@@ -91,6 +102,10 @@ spec:
         name: postgres-data
       spec:
         accessModes: ["ReadWriteOnce"]
+        # NOTE: Azure Files (SMB) is not a supported PostgreSQL backing store.
+        # Migration to `managed-postgres` (Azure Disk, reclaimPolicy Retain) is
+        # prepared in postgres/storageclass-managed.yaml — this field is immutable,
+        # so the switch requires the documented dump/restore cutover.
         storageClassName: azurefile-postgres
         resources:
           requests:

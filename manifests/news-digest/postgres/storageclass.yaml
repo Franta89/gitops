@@ -1,3 +1,11 @@
+# DEPRECATED — see storageclass-managed.yaml.
+#
+# PostgreSQL on Azure Files (SMB) is unsupported: fsync and file-locking semantics
+# differ from POSIX, so corruption can occur silently. reclaimPolicy: Delete also
+# means an Argo prune of the PVC destroys the database irrecoverably, and there is
+# no backup. Replacement class (Azure Disk, Retain) is in storageclass-managed.yaml
+# together with the cutover procedure; this class stays until that migration runs,
+# because both it and the StatefulSet's volumeClaimTemplate are immutable.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

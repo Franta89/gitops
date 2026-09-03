@@ -17,12 +17,16 @@ backlog is tracked in `infra-terraform/whatnext.md`.
 | Network | **NetworkPolicy enforced** (Cilium dataplane) | `infra-terraform` AKS module (`network_policy=cilium`) |
 | Network | Postgres reachable only from API/worker pods; API only from frontend (identity-based) | `manifests/news-digest/networkpolicy.yaml` |
 | Network | NSG: public inbound to nodes restricted to **Cloudflare ranges only**, on the AKS-managed NIC NSG (both subnet and NIC NSGs must allow, so the tighter one wins) | rendered from `loadBalancerSourceRanges`; subnet NSG in `infra-terraform` network module |
-| Identity | **Workload Identity** (keyless) — no static keys/API keys anywhere | `infra-terraform` azure-ai module |
-| Identity | **Least privilege split**: app identity (OpenAI + AI Developer + KV) vs secrets-only identity (KV read) for secret-sync | azure-ai module + monitoring/cert-manager SA + SecretProviderClass |
-| Identity | Automation account scoped to the **AKS cluster**, not the resource group | `infra-terraform/automation.tf` |
+| Identity | **Workload Identity** (keyless) — no static keys/API keys anywhere; key-based auth is **disabled at the resource**: `local_auth_enabled=false` on AI Services, `shared_access_key_enabled=false` on the Foundry storage account | `infra-terraform` azure-ai module |
+| Identity | **Least privilege split**: app identity (OpenAI + AI Developer + KV) vs secrets-only identity (KV read) for secret-sync | azure-ai module + monitoring/cert-manager/puzzle SA + SecretProviderClass |
+| Identity | Automation account scoped to the **AKS cluster** with a custom start/stop-only role (not `Contributor`, which grants `listClusterAdminCredential`) | `infra-terraform/automation.tf` |
 | Secrets | All secrets in **Azure Key Vault**, materialised via AKV CSI driver; no plaintext in git | `*/secret-provider-class.yaml`, `.gitignore` |
+| Patching | AKS `automatic_upgrade_channel=patch` + `node_os_upgrade_channel=NodeImage`, Sunday maintenance windows inside the running period | `infra-terraform` aks module |
+| Network | API and Postgres pods have **egress** policies (default-deny outbound; DNS, Postgres and public HTTPS only, RFC1918 + link-local excluded) | `manifests/news-digest/networkpolicy.yaml` |
 | Workload | Pods run **non-root** (uid 1000), `allowPrivilegeEscalation:false`, `capabilities.drop:[ALL]`, `seccompProfile:RuntimeDefault`, CPU/mem limits | all Deployments/StatefulSets/CronJobs |
 | Workload | **HTTP security headers** on every response: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy | `manifests/news-digest/config/frontend-configmap.yaml` (frontend-nginx) |
+| App | Article URLs validated at **both** ends — the aggregator drops any URL the model did not take from the candidate pool, the frontend allows only `http(s)` in an `href` | `config/aggregator-configmap.yaml`, `config/frontend-configmap.yaml` |
+| Cost | Paid TTS path guarded: single-flight on cache misses, global synthesis semaphore, per-client budget on `/api/audio` | `config/api-configmap.yaml` |
 | GitOps | Argo CD runs `--insecure` behind Gateway TLS; UI at `/argocd`, edge-protected by Cloudflare + WAF | `infra-terraform` argocd module, `manifests/argocd/` |
 
 ## Notes & intentional exceptions
@@ -67,3 +71,18 @@ curl -sI http://dailydoseoftech.org | head -1            # 301 -> https
 - PostgreSQL TLS (`sslmode=require`) (#13)
 - AKS API-server authorized IP ranges / Entra RBAC + `disableLocalAccounts` (needs Entra)
 - Defender for Containers + Azure Policy (Pod Security Standards: restricted)
+
+## Open from the 2026-09-03 review
+
+Full write-up in [`20260903_security_findings.md`](20260903_security_findings.md).
+
+- **Terraform state is local and unencrypted** and holds live secrets including the
+  AKS cluster-admin key. Needs an operator with `az login` to migrate to the blob
+  backend.
+- **Postgres runs on Azure Files (SMB)**, which PostgreSQL does not support, with
+  `reclaimPolicy: Delete` and no backup. Replacement class and cutover procedure
+  are prepared in `manifests/news-digest/postgres/storageclass-managed.yaml`; the
+  migration itself is a manual dump/restore.
+- **All Argo Applications still use the `default` AppProject.** A scoped project is
+  drafted in `manifests/argocd/appproject.yaml` with adoption steps; switching the
+  Applications over should be done with the cluster up.

@@ -379,6 +379,24 @@ data:
         except Exception:
             return ""
 
+    def is_safe_url(url) -> bool:
+        """True only for ordinary http(s) links.
+
+        Article URLs travel from an untrusted RSS feed, through the model, into the
+        database, and end up in an href on the public page. A feed that smuggles a
+        `javascript:` or `data:` URL past the model would therefore land a clickable
+        script on the site, so the scheme is checked here at the point of ingest as
+        well as in the frontend.
+        """
+        if not url or not isinstance(url, str):
+            return False
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url.strip())
+        except Exception:
+            return False
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
     # Pure package indexes / changelog aggregators that flood keyword queries
     # with low-importance release notes. Capped harder than ordinary sources.
     AGGREGATOR_DOMAINS = {
@@ -986,6 +1004,11 @@ data:
         client = OpenAI(
             base_url=OPENAI_ENDPOINT,
             api_key=_TokenProvider()(),
+            # Without an explicit timeout a stalled connection hangs the CronJob
+            # indefinitely — it would sit past the 20:00 cluster shutdown holding a
+            # DB connection. Bounded retries cover transient 429/5xx.
+            timeout=120.0,
+            max_retries=3,
         )
 
         now_utc = datetime.now(timezone.utc)
@@ -1070,6 +1093,11 @@ data:
                         seen_urls.add(c["url"])
                         merged.append(c)
                 candidates = merged
+                # Provenance set: the ONLY URLs the model is allowed to return for
+                # this area. The model is asked to echo back candidate URLs, but
+                # nothing forced it to — a hallucinated or feed-injected link would
+                # otherwise be persisted and rendered as an href on the public page.
+                allowed_urls = {c["url"] for c in candidates if is_safe_url(c["url"])}
                 log.info("Processing area: %s (%d candidates)", area, len(candidates))
 
                 if not candidates:
@@ -1112,6 +1140,12 @@ data:
                     url = it.get("url")
                     title_key = re.sub(r"\W+", " ", it.get("title", "")).strip().lower()
                     if not url or url in selected_urls or url in local_seen:
+                        continue
+                    # Drop anything the model did not take from this area's candidate
+                    # pool: unsafe schemes, invented links, and cross-area leakage.
+                    if url not in allowed_urls:
+                        log.warning("Dropping item with non-candidate URL in %s: %r",
+                                    area, _domain_of(url) or "<unparseable>")
                         continue
                     if title_key and title_key in local_titles:
                         continue  # same story from a different feed/URL within this area

@@ -1,0 +1,69 @@
+# Scoped Argo CD AppProject — DRAFTED, NOT YET IN USE.
+#
+# Every Application in this repo currently declares `project: default`. The default
+# project allows any source repo, any destination cluster/namespace, and any
+# resource kind. Combined with `prune: true`, `selfHeal: true`, a mutable
+# `targetRevision: main`, and an Argo UI published at /argocd with the local
+# `admin` account, a single bad or malicious commit reaches the entire cluster.
+#
+# This project narrows that to exactly what the stack actually uses: the two
+# source repos, this one cluster, the namespaces in the app-of-apps, and a deny
+# list for the cluster-scoped kinds nothing here should ever create (RBAC
+# escalation primitives and admission webhooks).
+#
+# TO ADOPT — do this with the cluster running so each app can be checked:
+#   1. Sync this manifest so the project exists.
+#   2. Change `project: default` -> `project: ddot` in bootstrap/root-app.yaml and
+#      every file under apps/, one at a time.
+#   3. After each change confirm the Application still reports Synced/Healthy
+#      (`kubectl get application -n argocd`). A blocked resource surfaces as a
+#      sync error naming the kind, which is then added to clusterResourceWhitelist.
+# Rolling back is a one-line revert per Application.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ddot
+  namespace: argocd
+spec:
+  description: Daily Dose of Tech + Kafka sandbox — scoped replacement for the default project.
+
+  sourceRepos:
+    - https://github.com/Franta89/gitops.git
+    - https://charts.bitnami.com/bitnami
+    - https://charts.jetstack.io
+    - https://strimzi.io/charts/
+    - https://prometheus-community.github.io/helm-charts
+    - docker.io/envoyproxy
+    # Uncomment together with apps/alb-controller.yaml if AGC is ever restored.
+    # - mcr.microsoft.com/application-lb/charts
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: cert-manager
+    - server: https://kubernetes.default.svc
+      namespace: envoy-gateway-system
+    - server: https://kubernetes.default.svc
+      namespace: kafka
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: news-digest
+    - server: https://kubernetes.default.svc
+      namespace: puzzle
+
+  # Resource KINDS are deliberately left open. cert-manager, Strimzi, Envoy
+  # Gateway and kube-prometheus-stack each install CRDs, ClusterRoles,
+  # ClusterRoleBindings and admission webhooks as part of normal operation, so a
+  # kind-level blacklist would break them on the next sync rather than block an
+  # attack. The value here is in the three restrictions above — source repos,
+  # destination cluster, and namespace list — which is what turns "any commit in
+  # any repo can create anything anywhere" into a bounded surface.
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
