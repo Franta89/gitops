@@ -25,6 +25,19 @@ spec:
   hostnames:
     - dailydoseoftech.org
   rules:
+    # Grafana serves its own Prometheus metrics at /metrics without auth. Deny it
+    # at the edge (SECURITY.md S4); the longer PathPrefix wins over /grafana.
+    # Prometheus scrapes Grafana in-cluster via its ServiceMonitor, unaffected.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /grafana/metrics
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: grafana-deny-404
     - matches:
         - path:
             type: PathPrefix
@@ -32,3 +45,17 @@ spec:
       backendRefs:
         - name: monitoring-grafana
           port: 80
+---
+# Fixed 404 used by the /grafana/metrics rule above (Envoy Gateway extension).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: grafana-deny-404
+  namespace: monitoring
+spec:
+  directResponse:
+    statusCode: 404
+    contentType: text/plain
+    body:
+      type: Inline
+      inline: "Not Found"
