@@ -1,6 +1,6 @@
 # kube-prometheus-stack: Prometheus + Grafana + node-exporter + kube-state-metrics.
 # Wave 3. Grafana: https://dailydoseoftech.org/grafana  login: admin / <grafana-admin-password
-# in Key Vault kv-ddot-dev-swc-001>. NOTE: persistence is enabled, so the admin
+# in Key Vault kv-ddot-dev-swc-002>. NOTE: persistence is enabled, so the admin
 # password lives in Grafana's DB and GF_SECURITY_ADMIN_PASSWORD only applies on
 # first init — rotating the Key Vault secret alone won't change it. After rotating,
 # also run: kubectl exec deploy/monitoring-grafana -n monitoring -c grafana --

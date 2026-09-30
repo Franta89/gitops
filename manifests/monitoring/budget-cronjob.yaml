@@ -120,9 +120,9 @@ spec:
               command: ["python", "/scripts/budget_push.py"]
               env:
                 - name: SUBSCRIPTION_ID
-                  value: "71ba5d23-aba5-4515-9582-259879889653"
+                  value: "8a8c53b4-e063-450d-9357-df1fb4710ab7"
                 - name: RESOURCE_GROUP
-                  value: "rg-kafka-dev-swc-001"
+                  value: "rg-kafka-dev-swc-002"
                 - name: PUSHGATEWAY
                   value: "http://pushgateway:9091"
                 - name: PYTHONDONTWRITEBYTECODE

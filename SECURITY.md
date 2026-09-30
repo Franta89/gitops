@@ -56,7 +56,7 @@ backlog is tracked in `infra-terraform/whatnext.md`.
 ## Verify the posture
 
 ```bash
-az aks show -g rg-kafka-dev-swc-001 -n aks-kafka-dev-swc-001 --query networkProfile.networkPolicy -o tsv   # cilium
+az aks show -g rg-kafka-dev-swc-002 -n aks-kafka-dev-swc-002 --query networkProfile.networkPolicy -o tsv   # cilium
 kubectl get networkpolicy -n news-digest                 # postgres-ingress, api-ingress
 kubectl get webapplicationfirewallpolicy -n news-digest  # ddot-waf
 kubectl get certificate -n news-digest                   # dailydoseoftech-tls Ready

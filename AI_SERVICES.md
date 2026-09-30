@@ -21,12 +21,12 @@ account and both **keyless** (Workload Identity):
 
 | Item | Value |
 | --- | --- |
-| Service | **Azure AI Services** account (`ais-ddot-dev-swc-001`) — hosts **both** the OpenAI model and Speech |
+| Service | **Azure AI Services** account (`ais-ddot-dev-swc-002`) — hosts **both** the OpenAI model and Speech |
 | Text model / deployment | **GPT-5.4-mini** (`gpt-5.4-mini`) |
-| Text API surface | Azure OpenAI **v1 API** — `https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/` |
+| Text API surface | Azure OpenAI **v1 API** — `https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/` |
 | Text client library | stock `openai` Python SDK (`openai~=1.57.4`), `OpenAI` class |
 | Speech ("Listen") | **Neural text-to-speech**, Standard Neural tier, native EN + CS voices |
-| Speech API surface | TTS **REST** — `https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/tts/cognitiveservices/v1` |
+| Speech API surface | TTS **REST** — `https://ais-ddot-dev-swc-002.cognitiveservices.azure.com/tts/cognitiveservices/v1` |
 | Auth (both) | Azure **Workload Identity** (keyless) → Entra ID bearer token |
 | MP3 cache | Azure **Blob** container `audio` (per-area clip + markers `.json` per day; pre-generated for the default voice, lazy otherwise) |
 | Provisioned but NOT in the inference path | AI Foundry Hub |
@@ -181,7 +181,7 @@ bearer format. The pod mints an Entra token (scope
 `https://cognitiveservices.azure.com/.default`, the same scope as OpenAI) and sends:
 
 ```text
-POST https://ais-ddot-dev-swc-001.cognitiveservices.azure.com/tts/cognitiveservices/v1
+POST https://ais-ddot-dev-swc-002.cognitiveservices.azure.com/tts/cognitiveservices/v1
 Authorization: Bearer aad#<SPEECH_RESOURCE_ID>#<entra-token>
 Content-Type: application/ssml+xml
 X-Microsoft-OutputFormat: audio-24khz-48kbitrate-mono-mp3
@@ -213,7 +213,7 @@ The text (GPT) path is driven by two settings, both in
 `envFrom`:
 
 ```yaml
-OPENAI_ENDPOINT:   "https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/"
+OPENAI_ENDPOINT:   "https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/"
 OPENAI_DEPLOYMENT: "gpt-5.4-mini"
 ```
 
@@ -270,14 +270,14 @@ account — granted in `infra-terraform`.
 > Postgres password / database URL (`news-digest-akv` `SecretProviderClass`).
 >
 > **Which identity?** The workload identity is a **dedicated user-assigned
-> managed identity** (`id-ddot-dev-swc-001`, client ID `a3f25662-…`) created in
+> managed identity** (`id-ddot-dev-swc-002`, client ID `db5d94ff-…`) created in
 > `infra-terraform` for this app alone — it is **not** the AKS cluster's own
-> kubelet/node-pool identity (`aks-kafka-dev-swc-001-agentpool`). This is the
+> kubelet/node-pool identity (`aks-kafka-dev-swc-002-agentpool`). This is the
 > point of Workload Identity: ddot pods authenticate with their own
 > least-privilege identity (scoped to AI Services + Key Vault) instead of
 > inheriting the broad cluster identity. The `id-` prefix vs `…-agentpool` is how
 > Azure distinguishes a purpose-built workload identity from the auto-generated
-> cluster one. A **federated credential** on `id-ddot-dev-swc-001` trusts the AKS
+> cluster one. A **federated credential** on `id-ddot-dev-swc-002` trusts the AKS
 > OIDC issuer for subject `system:serviceaccount:news-digest:news-digest-sa`, so
 > only pods running as `news-digest-sa` can mint its token.
 

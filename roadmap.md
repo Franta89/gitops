@@ -37,7 +37,7 @@ offering, but **keep cost low** (the project has a monthly budget alert).
 ## 2. Recommended solution (Azure AI Foundry → Speech, keyless)
 
 **Service:** Azure AI **Speech** Neural Text-to-Speech, accessed through the
-**existing** multi-service account `ais-ddot-dev-swc-001` (kind `AIServices` already
+**existing** multi-service account `ais-ddot-dev-swc-002` (kind `AIServices` already
 includes Speech, and it has a custom subdomain) — **no new Azure resource needed**.
 
 **Auth:** keep the keyless pattern — Workload Identity. Add the role

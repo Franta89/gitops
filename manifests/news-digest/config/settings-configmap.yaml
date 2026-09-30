@@ -7,7 +7,7 @@ data:
   # Azure OpenAI v1 API (base URL ends in /openai/v1/). The v1 API removes dated
   # api-version params — avoids preview/dated-route breakage. The app uses the
   # stock OpenAI client with an Entra ID bearer token; no OPENAI_API_VERSION.
-  OPENAI_ENDPOINT: "https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/"
+  OPENAI_ENDPOINT: "https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/"
   OPENAI_DEPLOYMENT: "gpt-5.4-mini"
   LOG_LEVEL: "INFO"
 
@@ -21,8 +21,8 @@ data:
   #   terraform output speech_resource_id          # → SPEECH_RESOURCE_ID
   #   terraform output speech_endpoint             # → SPEECH_ENDPOINT
   #   terraform output audio_storage_account_name  # → AUDIO_STORAGE_ACCOUNT
-  SPEECH_ENDPOINT: "https://ais-ddot-dev-swc-001.cognitiveservices.azure.com"
-  SPEECH_RESOURCE_ID: "/subscriptions/71ba5d23-aba5-4515-9582-259879889653/resourceGroups/rg-ddot-dev-swc-001/providers/Microsoft.CognitiveServices/accounts/ais-ddot-dev-swc-001"
+  SPEECH_ENDPOINT: "https://ais-ddot-dev-swc-002.cognitiveservices.azure.com"
+  SPEECH_RESOURCE_ID: "/subscriptions/8a8c53b4-e063-450d-9357-df1fb4710ab7/resourceGroups/rg-ddot-dev-swc-002/providers/Microsoft.CognitiveServices/accounts/ais-ddot-dev-swc-002"
   # Standard Neural at 24kHz (cost default; HD would be audio-48khz-* + HD voices).
   SPEECH_OUTPUT_FORMAT: "audio-24khz-48kbitrate-mono-mp3"
   # Carolina = female, Jacob = male. English uses the multilingual Ava/Andrew;
@@ -35,5 +35,5 @@ data:
   VOICE_JACOB_EN: "en-US-AndrewMultilingualNeural"
   VOICE_JACOB_CS: "cs-CZ-AntoninNeural"
   # Blob MP3 cache (container 'audio' on the existing Foundry storage account).
-  AUDIO_STORAGE_ACCOUNT: "stddotdevswc001hub"
+  AUDIO_STORAGE_ACCOUNT: "stddotdevswc002hub"
   AUDIO_CONTAINER: "audio"

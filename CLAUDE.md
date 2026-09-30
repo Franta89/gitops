@@ -126,7 +126,7 @@ key-based external APIs.
 
 ## Azure Key Vault secret workflow
 
-All secrets live in Azure Key Vault (`kv-ddot-dev-swc-001`). The AKV CSI driver
+All secrets live in Azure Key Vault (`kv-ddot-dev-swc-002`). The AKV CSI driver
 (enabled as an AKS add-on) pulls them into pods at startup via `SecretProviderClass`
 resources, creating standard K8s Secret objects that `envFrom: secretRef` consumes.
 
@@ -173,11 +173,11 @@ manifests/
 - [ ] After `terraform apply` in infra-terraform: fill AKV placeholders in SecretProviderClass files and secret-sa.yaml files.
 - [ ] After `terraform apply` in infra-terraform: fill placeholders in serviceaccount.yaml and settings-configmap.yaml.
 - [x] After `terraform apply`: set `OPENAI_ENDPOINT` in `settings-configmap.yaml` to the
-      AI Services **v1 API** base URL (`https://ais-ddot-dev-swc-001.openai.azure.com/openai/v1/`)
+      AI Services **v1 API** base URL (`https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/`)
       and `OPENAI_DEPLOYMENT` to `gpt-5.4-mini`. The app calls AI Services directly; the
       Foundry Hub is provisioned but NOT in the inference path (no Hub connection needed).
 - [x] Ingress migrated from AGC to Envoy Gateway (2026-08-07). Cloudflare: apex is an
-      **A record → `terraform output ingress_public_ip`** (20.91.207.188), `www` a CNAME to
+      **A record → `terraform output ingress_public_ip`** (4.165.129.12, CNS DEV FROZ since 2026-09-30), `www` a CNAME to
       the apex, orange-cloud proxy on both, SSL/TLS mode **Full (strict)**. The AGC code is
       commented out rather than deleted — restore checklist in `README.md`.
 - [ ] After `terraform apply` (security pass): paste `secrets_sync_client_id` into the

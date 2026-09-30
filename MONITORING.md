@@ -133,7 +133,7 @@ from the Cloudflare pipeline plus the TLS-expiry panel.
 ## Secrets
 
 No plaintext secrets in git. Grafana admin creds and the Cloudflare token live in
-Azure Key Vault (`kv-ddot-dev-swc-001`) and are materialised by the **AKV CSI
+Azure Key Vault (`kv-ddot-dev-swc-002`) and are materialised by the **AKV CSI
 driver**:
 
 - [secret-provider-class.yaml](manifests/monitoring/secret-provider-class.yaml) —

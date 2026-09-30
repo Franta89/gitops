@@ -53,7 +53,7 @@ spec:
           # point straight at this address, so it must survive Service recreation.
           # The IP lives in the AKS node resource group, which is where the cloud
           # provider looks by default — no resource-group annotation needed.
-          service.beta.kubernetes.io/azure-pip-name: pip-ingress-ddot-dev-swc-001
+          service.beta.kubernetes.io/azure-pip-name: pip-ingress-ddot-dev-swc-002
         # ORIGIN LOCK. All public traffic is proxied through Cloudflare, so only
         # Cloudflare edge IPs have any business reaching this Service. AKS turns
         # loadBalancerSourceRanges into NSG rules automatically, which closes the

@@ -28,7 +28,7 @@ spec:
           database: puzzle_events
           # The password previously lived here in plaintext and was committed to
           # git. It now comes from Key Vault: the puzzle-secrets Application syncs
-          # kv-ddot-dev-swc-001/puzzle-postgres-password into this Secret, which
+          # kv-ddot-dev-swc-002/puzzle-postgres-password into this Secret, which
           # carries both keys the chart expects (postgres-password, password).
           existingSecret: puzzle-postgresql
         primary:
