@@ -10,8 +10,9 @@ The cluster is provisioned by the companion **infra-terraform** repo.
 
 ## Argo CD UI
 `kubectl -n argocd port-forward svc/argocd-server 8080:443`
-Initial admin password:
-`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
+Also public at <https://dailydoseoftech.org/argocd>. Admin password (rotated
+2026-09-30; the initial secret was deleted — see SECURITY.md S2):
+`az keyvault secret show --vault-name kv-ddot-dev-swc-002 -n argocd-admin-password --query value -o tsv`
 
 ## Daily Dose of Tech (news app)
 
