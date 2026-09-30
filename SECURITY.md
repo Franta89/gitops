@@ -58,7 +58,7 @@ backlog is tracked in `infra-terraform/whatnext.md`.
 ```bash
 az aks show -g rg-kafka-dev-swc-002 -n aks-kafka-dev-swc-002 --query networkProfile.networkPolicy -o tsv   # cilium
 kubectl get networkpolicy -n news-digest                 # postgres-ingress, api-ingress
-kubectl get webapplicationfirewallpolicy -n news-digest  # ddot-waf
+curl -s -m 8 --resolve dailydoseoftech.org:443:4.165.129.12 https://dailydoseoftech.org/ || echo "origin locked"   # direct, non-Cloudflare: no answer
 kubectl get certificate -n news-digest                   # dailydoseoftech-tls Ready
 curl -sI http://dailydoseoftech.org | head -1            # 301 -> https
 ```
@@ -69,8 +69,27 @@ curl -sI http://dailydoseoftech.org | head -1            # 301 -> https
 - AKS diagnostic/audit logs → Log Analytics (#12)
 - Prebuilt, scanned images in ACR (digest-pinned) + `readOnlyRootFilesystem` (#10)
 - PostgreSQL TLS (`sslmode=require`) (#13)
-- AKS API-server authorized IP ranges / Entra RBAC + `disableLocalAccounts` (needs Entra)
-- Defender for Containers + Azure Policy (Pod Security Standards: restricted)
+- AKS API-server authorized IP ranges / Entra RBAC + `disableLocalAccounts` — see S1 below
+- Defender for Containers + Azure Policy (Pod Security Standards: restricted) — see S5 below
+
+## Open from the 2026-09-30 review
+
+Live review after the move to the CNS DEV FROZ subscription, checked against the
+running deployment (not just the manifests). Items already listed above are not
+repeated.
+
+| # | Sev | Finding | Fix | Status |
+| - | --- | ------- | --- | ------ |
+| S1 | 🔴 | **AKS API server open to the internet with a local admin certificate.** No authorized IP ranges, no Entra ID integration, `disableLocalAccounts=false`. The cluster-admin client cert lives in Terraform state and `~/.kube/config` and cannot be revoked short of rotating cluster certificates. | Quick: `api_server_authorized_ip_ranges` (infra-terraform). Proper: Entra ID + Azure RBAC for Kubernetes, local accounts disabled, Terraform Helm/Kubernetes providers via kubelogin. | quick fix open; Entra blocked (no Entra ID access) |
+| S2 | 🔴 | **Argo CD login is public, admin-only, initial password never rotated.** `argocd-initial-admin-secret` still present, no MFA. Argo CD access is effectively cluster-admin. | Rotate admin password + delete the initial secret; **Cloudflare Access** (Zero Trust, free tier) in front of `/argocd` and `/grafana` for SSO + MFA at the edge. | open |
+| S3 | 🔴 | **Cloudflare API token over-privileged and over-distributed.** The DNS-edit token (needed only by cert-manager DNS-01) is also mounted into `monitoring` for the `cf-analytics` job, which needs Analytics:Read only. A compromised monitoring pod could repoint `dailydoseoftech.org` or issue certificates for it. | Separate read-only analytics token in Key Vault for `cf-analytics`; DNS-edit token stays in cert-manager only. | open (needs a new token from the Cloudflare dashboard) |
+| S4 | 🟠 | **`/grafana/metrics` publicly readable** — ~130 KB of Grafana internals, unauthenticated. | Gateway rule answering 404 on that path. Prometheus scrapes Grafana in-cluster via its ServiceMonitor, so monitoring is unaffected. | open |
+| S5 | 🟠 | **No detection or audit trail.** No AKS diagnostic settings / audit logs, no Defender for Containers, no Azure Policy add-on. An exploit of S1–S3 would leave no record. | AKS `kube-audit-admin` → storage account (cheap); Defender for Containers (~EUR 13/month for this node); Azure Policy add-on (PSS restricted, audit mode first). | open (cost decision) |
+| S6 | 🟠 | **Postgres volume on an AKS-auto-created storage account** (`f92424a5…` in the node RG) with shared-key access and public network access enabled — Azure Files (SMB) requires the key. Extends the Azure Files finding above. | Resolved by the Azure Disk cutover, which is blocked by the node's 4-data-disk limit; alternatively restrict the account's network access to the AKS subnet. | open |
+| S7 | 🟡 | **Supply chain:** 45 image references not digest-pinned; API + both aggregator CronJobs `pip install` from PyPI on every start (version-pinned, not hash-pinned). | Prebuilt images in ACR, digest-pinned (backlog #10); interim: `pip install --require-hashes`. | open |
+| S8 | ⚪ | Unused `newsapi-key` still stored in Key Vault; `terraform.tfvars` on the operator workstation holds every secret in plaintext (gitignored). | Remove the unused secret; keep tfvars out of synced folders/backups. | open |
+| S9 | ⚪ | **Unverified:** Cloudflare SSL/TLS mode (Full strict) and WAF rules — the API token cannot read zone settings. | Check in the Cloudflare dashboard. | open |
+| S10 | ⚪ | No NetworkPolicies in `monitoring`, `argocd`, `cert-manager`, `envoy-gateway-system`. | Default-deny + explicit allows per namespace. | open |
 
 ## Open from the 2026-09-03 review
 
