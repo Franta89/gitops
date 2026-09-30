@@ -1,5 +1,5 @@
-# Exposes Argo CD via Gateway API (HTTPRoute + AGC HealthCheckPolicy in the argocd
-# namespace). Wave 6 — after the shared Gateway (news-digest, wave 5) exists.
+# Exposes Argo CD via Gateway API (HTTPRoute in the argocd namespace; the AGC
+# HealthCheckPolicy is commented out). Wave 6 — after the shared Gateway exists.
 # Argo CD itself is installed by the infra-terraform argocd module, not here; this
 # app only adds the routing objects.
 apiVersion: argoproj.io/v1alpha1

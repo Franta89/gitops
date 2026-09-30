@@ -216,6 +216,8 @@ saving is roughly **EUR 123/month**.
 | `apps/alb-controller.yaml` | the whole Argo Application |
 | `manifests/news-digest/waf.yaml` | the `WebApplicationFirewallPolicy` |
 | `manifests/news-digest/gateway.yaml` | the `alb-id` annotation + `azure-alb-external` class |
+| `manifests/monitoring/grafana-healthcheck.yaml` | Grafana `HealthCheckPolicy` (commented out 2026-09-30: its CRD is gone on a fresh cluster and failed the sync) |
+| `manifests/argocd/healthcheck.yaml` | Argo CD `HealthCheckPolicy` (same) |
 
 Everything under `infra-terraform/modules/app-gateway-containers/` is **untouched
 and still valid**. Terraform only creates resources for modules that are actually

@@ -1,24 +1,32 @@
-# AGC health probe for Argo CD. Without it AGC probes "/", which argocd-server does
-# not answer 200 for, marking the backend unhealthy ("no healthy upstream").
-# argocd-server's /healthz returns 200 (it is the chart's own readiness probe path).
-apiVersion: alb.networking.azure.io/v1
-kind: HealthCheckPolicy
-metadata:
-  name: argocd-server-healthcheck
-  namespace: argocd
-spec:
-  targetRef:
-    group: ""
-    kind: Service
-    name: argocd-server
-  default:
-    interval: 15s
-    timeout: 5s
-    healthyThreshold: 1
-    unhealthyThreshold: 3
-    http:
-      path: /healthz
-      match:
-        statusCodes:
-          - start: 200
-            end: 299
+# RETIRED with AGC (2026-08-07); commented out 2026-09-30.
+#
+# HealthCheckPolicy is an AGC CRD (alb.networking.azure.io). The old cluster presumably
+# kept it installed after the AGC retirement, so this synced as a dead object; a
+# fresh cluster has no such CRD, and the object failed the whole Argo sync
+# ("one or more synchronization tasks are not valid"). Envoy Gateway needs no
+# probe policy: it routes only to Ready endpoints. Uncomment if AGC returns.
+#
+# # AGC health probe for Argo CD. Without it AGC probes "/", which argocd-server does
+# # not answer 200 for, marking the backend unhealthy ("no healthy upstream").
+# # argocd-server's /healthz returns 200 (it is the chart's own readiness probe path).
+# apiVersion: alb.networking.azure.io/v1
+# kind: HealthCheckPolicy
+# metadata:
+#   name: argocd-server-healthcheck
+#   namespace: argocd
+# spec:
+#   targetRef:
+#     group: ""
+#     kind: Service
+#     name: argocd-server
+#   default:
+#     interval: 15s
+#     timeout: 5s
+#     healthyThreshold: 1
+#     unhealthyThreshold: 3
+#     http:
+#       path: /healthz
+#       match:
+#         statusCodes:
+#           - start: 200
+#             end: 299
