@@ -63,11 +63,17 @@ data:
         "?api-version=2023-11-01" % (ARM, SUB), data=q,
         headers={**H, "Content-Type": "application/json"}, method="POST"))
     cols = [c["name"].lower() for c in cost["properties"]["columns"]]
-    rows = cost["properties"]["rows"] or [[0]]
+    rows = cost["properties"]["rows"]
     ci = cols.index("cost") if "cost" in cols else 0
     cur_i = cols.index("currency") if "currency" in cols else None
-    spend = float(rows[0][ci])
-    currency = rows[0][cur_i] if cur_i is not None else "USD"
+    if rows:
+        spend = float(rows[0][ci])
+        currency = rows[0][cur_i] if cur_i is not None else "USD"
+    else:
+        # No cost rows yet (e.g. a brand-new subscription, where Cost Management
+        # lags up to a day). A one-column [[0]] fallback crashed on the currency
+        # index here, so report zero spend explicitly instead.
+        spend, currency = 0.0, "USD"
 
     remaining = amount - spend
     ratio = (spend / amount) if amount > 0 else 0.0
