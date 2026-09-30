@@ -44,6 +44,11 @@ spec:
             server:
               root_url: "https://dailydoseoftech.org/grafana"
               serve_from_sub_path: true
+          # serve_from_sub_path moves /metrics under /grafana too; the default
+          # /metrics answers 301 -> 403, so the Grafana scrape target was always
+          # down. (Public access to /grafana/metrics is denied at the Gateway.)
+          serviceMonitor:
+            path: /grafana/metrics
         prometheus:
           prometheusSpec:
             retention: 3d
