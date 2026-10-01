@@ -156,7 +156,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=18"></script>
+      <script src="/app.js?v=19"></script>
     </body>
     </html>
 
@@ -670,7 +670,7 @@ data:
       "  |  (sync waves 0-5, app-of-apps pattern)                             |",
       "  |                                                                     |",
       "  |  +----------------------+   Strimzi Operator / Kafka (KRaft)       |",
-      "  |  |  App Gateway (AGC)   |                                           |",
+      "  |  |  Envoy Gateway       |                                           |",
       "  |  +----------+----------+   cert-manager . Prometheus . Grafana     |",
       "  |             |                                                       |",
       "  |   +---------+----------+   +-------------------------+             |",
@@ -736,7 +736,7 @@ data:
           "Categorisation: stories routed to areas by topic/entity (deterministic rules + one AI classification pass), not by source feed",
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- selects, summarises, and translates (EN/CS) the top stories per area",
           "Listen: Azure AI neural text-to-speech reads the digest aloud (EN/CS, male/female voice, per-article milestones); audio is pre-generated and cached",
-          "Ingress: Azure Application Gateway for Containers (Gateway API)",
+          "Ingress: Envoy Gateway (Gateway API) on a static IP, reachable only from Cloudflare",
           "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
           "Secrets: Azure Key Vault + CSI driver (keyless via Workload Identity)",
           "Purpose: dev/test sandbox -- Kubernetes and Azure AI services integration"
@@ -787,7 +787,7 @@ data:
           "Trideni: zpravy jsou zarazeny do oblasti podle tematu/entity (deterministicka pravidla + jeden AI klasifikacni pruchod), ne podle zdrojoveho kanalu",
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- vybira, sumarizuje a preklada (EN/CS) hlavni zpravy v kazde oblasti",
           "Poslech: neuronovy prevod textu na rec Azure AI cte prehled nahlas (EN/CS, muzsky/zensky hlas, milniky po clancich); zvuk je predgenerovany a cachovany",
-          "Ingress: Azure Application Gateway for Containers (Gateway API)",
+          "Ingress: Envoy Gateway (Gateway API) on a static IP, reachable only from Cloudflare",
           "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
           "Tajne klice: Azure Key Vault + CSI driver (keyless pres Workload Identity)",
           "Ucel: vyvojovy sandbox -- integrace Kubernetes a Azure AI sluzeb"

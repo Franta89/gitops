@@ -14,7 +14,7 @@ data:
     import psycopg2
     import psycopg2.extras
     from datetime import datetime, timedelta, timezone
-    from openai import OpenAI, RateLimitError
+    from openai import OpenAI, RateLimitError, BadRequestError
     from azure.identity import WorkloadIdentityCredential
     from azure.core.credentials import AccessToken
 
@@ -24,6 +24,13 @@ data:
 
     OPENAI_ENDPOINT    = os.environ["OPENAI_ENDPOINT"]
     OPENAI_DEPLOYMENT  = os.environ["OPENAI_DEPLOYMENT"]
+    # Optional cheaper model for the bulk headline classification pass; defaults
+    # to the main deployment so a single-model setup keeps working unchanged.
+    OPENAI_CLASSIFY_DEPLOYMENT = os.environ.get("OPENAI_CLASSIFY_DEPLOYMENT") or OPENAI_DEPLOYMENT
+    # Output cap per call. Reasoning models count their hidden reasoning against
+    # this, so 4000 truncated gpt-5.6 JSON mid-answer. Only generated tokens are
+    # billed, so a generous cap costs nothing for models that stop early.
+    MAX_COMPLETION_TOKENS = int(os.environ.get("MAX_COMPLETION_TOKENS", "16000"))
     DATABASE_URL       = os.environ["DATABASE_URL"]
 
     # Feeds are grouped by FAMILY, not by area. A story's area is decided by what
@@ -499,6 +506,23 @@ data:
 
     # Classify ambiguous tech articles (those route_tech() could not decide) into a
     # single area by topic. One AI call for the whole batch.
+    # Newer reasoning models (e.g. gpt-5.6-*) accept only the default temperature
+    # and reject any explicit value with HTTP 400. Learn that per deployment on the
+    # first rejection and stop sending it, so models can be swapped by config alone.
+    _NO_TEMPERATURE: set = set()
+
+    def _chat_create(client: OpenAI, model: str, temperature: float, **kw):
+        if model not in _NO_TEMPERATURE:
+            try:
+                return client.chat.completions.create(
+                    model=model, temperature=temperature, **kw)
+            except BadRequestError as e:
+                if "temperature" not in str(e):
+                    raise
+                log.info("%s rejects an explicit temperature; using the model default", model)
+                _NO_TEMPERATURE.add(model)
+        return client.chat.completions.create(model=model, **kw)
+
     def classify_articles(client: OpenAI, articles: list[dict]) -> dict:
         if not articles:
             return {}
@@ -522,11 +546,10 @@ data:
             "Headlines (JSON):\n" + json.dumps(payload, ensure_ascii=False)
         )
         try:
-            resp = client.chat.completions.create(
-                model=OPENAI_DEPLOYMENT,
+            resp = _chat_create(
+                client, OPENAI_CLASSIFY_DEPLOYMENT, 0.0,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_completion_tokens=4000,
+                max_completion_tokens=MAX_COMPLETION_TOKENS,
             )
             data = _parse_json(resp.choices[0].message.content)
         except Exception:
@@ -801,11 +824,10 @@ data:
             'Candidate articles (JSON array):\n'
             + json.dumps(fresh, ensure_ascii=False)
         )
-        response = client.chat.completions.create(
-            model=OPENAI_DEPLOYMENT,
+        response = _chat_create(
+            client, OPENAI_DEPLOYMENT, 0.2,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_completion_tokens=4000,
+            max_completion_tokens=MAX_COMPLETION_TOKENS,
         )
         if response.choices[0].finish_reason == "length":
             log.warning("AI response for %s hit the token limit — JSON may be truncated",
@@ -852,10 +874,9 @@ data:
         once = client.with_options(max_retries=0)
         for attempt in range(1, attempts + 1):
             try:
-                resp = once.chat.completions.create(
-                    model=OPENAI_DEPLOYMENT,
+                resp = _chat_create(
+                    once, OPENAI_DEPLOYMENT, temperature,
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=temperature,
                     max_completion_tokens=max_tokens,
                 )
                 return resp.choices[0].message.content.strip()
