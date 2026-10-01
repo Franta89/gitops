@@ -3,9 +3,9 @@
 # PostgreSQL on Azure Files (SMB) is unsupported: fsync and file-locking semantics
 # differ from POSIX, so corruption can occur silently. reclaimPolicy: Delete also
 # means an Argo prune of the PVC destroys the database irrecoverably, and there is
-# no backup. Replacement class (Azure Disk, Retain) is in storageclass-managed.yaml
-# together with the cutover procedure; this class stays until that migration runs,
-# because both it and the StatefulSet's volumeClaimTemplate are immutable.
+# no backup. Replaced by storageclass-managed.yaml (Azure Disk, Retain) in the
+# 2026-10-01 cutover. Unused once the old postgres-data-postgres-0 claim is
+# deleted; remove this file after that.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

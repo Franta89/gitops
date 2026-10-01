@@ -1,8 +1,8 @@
 # Azure Disk StorageClass for PostgreSQL.
 #
 # WHY THIS EXISTS
-# The database currently runs on `azurefile-postgres` (see storageclass.yaml),
-# which is Azure Files — an SMB share. PostgreSQL is not supported on SMB: its
+# IN USE since the 2026-10-01 cutover. The database previously ran on
+# `azurefile-postgres` (see storageclass.yaml), which is Azure Files — an SMB share. PostgreSQL is not supported on SMB: its
 # durability guarantees depend on POSIX fsync and file-locking semantics that the
 # protocol does not reproduce, so the failure mode is silent data corruption
 # rather than a clean error. Azure Disk is the correct backing store for a
@@ -15,27 +15,25 @@
 #   * volumeBindingMode: Immediate -> WaitForFirstConsumer, so the disk is created
 #     in the same zone as the pod that will mount it.
 #
-# NOT YET IN USE — MIGRATION REQUIRED
-# StorageClasses and StatefulSet volumeClaimTemplates are both immutable, so this
-# cannot be switched by editing manifests: Argo would fail the sync. The cutover
-# is a deliberate operator action (a few minutes of downtime for the digest API):
+# CUTOVER PROCEDURE (as run on 2026-10-01; reuse it for any future storage change)
+# StorageClasses and StatefulSet volumeClaimTemplates are both immutable, so a
+# storage change is a deliberate operator action (a few minutes of API downtime):
 #
-#   1. Back up:
-#        kubectl exec -n news-digest postgres-0 -- \
-#          pg_dump -U newsdigest newsdigest > digest.sql
-#   2. Point the StatefulSet at this class:
-#        edit postgres/statefulset.yaml -> storageClassName: managed-postgres
-#   3. Drop the old objects, keeping the data safe in digest.sql:
-#        kubectl delete statefulset postgres -n news-digest --cascade=orphan
+#   1. Back up with --clean so the restore replaces tables the app re-creates:
+#        kubectl exec -n news-digest postgres-0 -c postgres -- #          pg_dump -U newsdigest --clean --if-exists newsdigest > digest.sql
+#   2. In postgres/statefulset.yaml change storageClassName AND rename the
+#      volumeClaimTemplate (+ both volumeMounts). The new name guarantees a fresh
+#      PVC: Argo's self-heal recreates the StatefulSet within seconds and, with the
+#      old name, would re-attach the old PVC if it still existed. Push; the
+#      StatefulSet sync fails (immutable field) until step 3.
+#   3.   kubectl delete statefulset postgres -n news-digest --cascade=orphan
 #        kubectl delete pod postgres-0 -n news-digest
-#        kubectl delete pvc postgres-data-postgres-0 -n news-digest
-#   4. Let Argo re-sync (or `kubectl apply`) so the StatefulSet is recreated with a
-#      fresh PVC on Azure Disk, then wait for postgres-0 to be Ready.
-#   5. Restore:
-#        kubectl exec -i -n news-digest postgres-0 -- \
-#          psql -U newsdigest newsdigest < digest.sql
-#   6. Verify: https://dailydoseoftech.org loads today's digest, and
-#        kubectl get pvc -n news-digest   # bound to managed-postgres
+#      Argo recreates the StatefulSet with a fresh PVC; wait for postgres-0 Ready.
+#   4. Restore:
+#        kubectl exec -i -n news-digest postgres-0 -c postgres -- #          psql -U newsdigest newsdigest < digest.sql
+#   5. Verify row counts, https://dailydoseoftech.org, and
+#        kubectl get pvc -n news-digest   # new PVC bound to managed-postgres
+#   6. Only then delete the old PVC (reclaimPolicy Delete removes its share/disk).
 #
 # Losing the digest history is not catastrophic — the CronJob republishes daily —
 # but the dump makes the cutover reversible.
