@@ -21,6 +21,10 @@ spec:
         - podSelector:
             matchLabels:
               app: news-digest-worker
+        # Nightly pg_dump (cronjobs/postgres-backup.yaml).
+        - podSelector:
+            matchLabels:
+              app: postgres-backup
       ports:
         - protocol: TCP
           port: 5432

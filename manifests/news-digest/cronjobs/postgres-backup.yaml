@@ -1,0 +1,176 @@
+# Nightly backup of the news-digest database to Azure Blob (keyless).
+#
+#   pg_dump (init container, same postgres:16-alpine image as the server, so the
+#   client always matches) -> gzip -> emptyDir -> upload container -> Blob
+#   stddotdevswc002hub/backups/newsdigest/<UTC timestamp>.sql.gz
+#
+# Auth is Workload Identity as news-digest-sa: the app identity already holds
+# Storage Blob Data Contributor on the account (infra-terraform azure-ai module).
+# Blobs expire after 14 days (lifecycle rule "expire-db-backups"). Cost is well
+# under one cent per month.
+#
+# 19:30 Prague: after the 06:30 digest and 07:10 audio warm-up, and before the
+# Automation account stops the cluster at 20:00.
+#
+# The upload refuses a dump that is not valid gzip or lacks pg_dump's completion
+# marker, so a truncated dump fails the job instead of replacing a good backup.
+#
+# Restore (dump uses --clean --if-exists, so it replaces existing tables):
+#   az storage blob download --account-name stddotdevswc002hub -c backups \
+#     -n newsdigest/<timestamp>.sql.gz -f dump.sql.gz --auth-mode login
+#   gzip -d dump.sql.gz
+#   kubectl exec -i -n news-digest postgres-0 -c postgres -- \
+#     psql -U newsdigest -d newsdigest -v ON_ERROR_STOP=1 < dump.sql
+# (Downloading needs Storage Blob Data Reader/Contributor on the account.)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-backup-script
+  namespace: news-digest
+data:
+  upload.py: |
+    import gzip, json, os, sys, time, urllib.error, urllib.parse, urllib.request
+
+    DUMP = "/backup/newsdigest.sql.gz"
+    ACCOUNT = os.environ["STORAGE_ACCOUNT"]
+    CONTAINER = os.environ.get("BACKUP_CONTAINER", "backups")
+
+    # --- sanity-check the dump before it can replace anything ---
+    with gzip.open(DUMP, "rb") as f:
+        data = f.read()
+    if b"PostgreSQL database dump complete" not in data[-4096:]:
+        sys.exit("dump is incomplete (no completion marker) - not uploading")
+    raw = open(DUMP, "rb").read()
+    print("dump ok: %d bytes uncompressed, %d gzipped" % (len(data), len(raw)))
+
+    # --- Workload Identity: federated SA token -> Entra token for Storage ---
+    with open(os.environ["AZURE_FEDERATED_TOKEN_FILE"]) as f:
+        assertion = f.read().strip()
+    token_url = "%s/%s/oauth2/v2.0/token" % (
+        os.environ["AZURE_AUTHORITY_HOST"].rstrip("/"), os.environ["AZURE_TENANT_ID"])
+    body = urllib.parse.urlencode({
+        "client_id": os.environ["AZURE_CLIENT_ID"],
+        "grant_type": "client_credentials",
+        "scope": "https://storage.azure.com/.default",
+        "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+        "client_assertion": assertion,
+    }).encode()
+    with urllib.request.urlopen(urllib.request.Request(token_url, data=body), timeout=30) as r:
+        token = json.loads(r.read())["access_token"]
+
+    # --- upload as a single block blob (fine far beyond our size) ---
+    name = "newsdigest/%s.sql.gz" % time.strftime("%Y-%m-%dT%H%MZ", time.gmtime())
+    url = "https://%s.blob.core.windows.net/%s/%s" % (ACCOUNT, CONTAINER, name)
+    req = urllib.request.Request(url, data=raw, method="PUT", headers={
+        "Authorization": "Bearer " + token,
+        "x-ms-version": "2023-11-03",
+        "x-ms-blob-type": "BlockBlob",
+        "Content-Type": "application/gzip",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            print("uploaded %s (HTTP %d)" % (name, r.status))
+    except urllib.error.HTTPError as e:
+        sys.exit("upload failed: HTTP %d %s" % (e.code, e.read()[:300]))
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: news-digest
+spec:
+  schedule: "30 19 * * *"
+  timeZone: "Europe/Prague"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            # Admitted to Postgres by postgres-ingress (networkpolicy.yaml).
+            app: postgres-backup
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: news-digest-sa
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: pg-dump
+              image: postgres:16-alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - set -eo pipefail;
+                  pg_dump -h postgres-svc -U newsdigest --clean --if-exists newsdigest
+                  | gzip -9 > /backup/newsdigest.sql.gz
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_PASSWORD
+              securityContext:
+                runAsUser: 70
+                runAsGroup: 70
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          containers:
+            - name: upload
+              image: python:3.12-slim
+              command: ["python", "/scripts/upload.py"]
+              env:
+                - name: STORAGE_ACCOUNT
+                  valueFrom:
+                    configMapKeyRef:
+                      name: news-digest-settings
+                      key: AUDIO_STORAGE_ACCOUNT
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+              securityContext:
+                runAsUser: 1000
+                runAsGroup: 1000
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                  readOnly: true
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: backup
+              emptyDir:
+                sizeLimit: 512Mi
+            - name: script
+              configMap:
+                name: postgres-backup-script

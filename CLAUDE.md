@@ -75,7 +75,8 @@ Areas: Cloud Computing · AI Development · IT Security · Financial Markets · 
 Euro News (Europe-only). The four topic areas tag each item European/global and show
 a "Europe" group; World News is global-excluding-Europe, Euro News its counterpart.
 
-Schedule: aggregator CronJob at 06:30 CET daily; monthly summary on the 1st.
+Schedule: aggregator CronJob at 06:30 CET daily; monthly summary on the 1st; database
+backup to Blob at 19:30 (before the 20:00 cluster stop). Postgres runs on Azure Disk.
 
 News retrieval is keyless: RSS feeds need no API key, removing the previous NewsAPI
 dependency (whose free tier was 24h-delayed and forbade production use). See
@@ -161,6 +162,7 @@ manifests/
     api/                      FastAPI Deployment + Service
     frontend/                 nginx Deployment + Service
     cronjobs/                 daily (06:30) + monthly (1st) + audio-warm (07:10, pre-gen Listen audio)
+                              + postgres-backup (19:30, pg_dump -> Blob, 14 days)
 ```
 
 ## TODO for Claude Code
