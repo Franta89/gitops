@@ -74,8 +74,9 @@ broken/stale feed is logged and skipped, never aborting a family.
 ### AI — how it works
 
 The AI does **not** fetch news (RSS does); its job is selection + writing. Model:
-**Azure AI Services GPT-5.4-mini**, called **directly against the AI Services
-account's v1 API** (`*.openai.azure.com/openai/v1/`, deployment `gpt-5.4-mini`) —
+**Azure AI Services GPT-5.6** (`gpt-5.6-terra` writes, `gpt-5.6-luna` classifies;
+see AI_SERVICES.md), called **directly against the AI Services account's v1 API**
+(`*.openai.azure.com/openai/v1/`) —
 **not** routed through the Foundry Hub. Uses the stock `OpenAI` client with no
 dated `api-version` (the v1 API drops it — avoids dated-route breakage), authenticated
 **keylessly** with an Entra ID bearer token from `WorkloadIdentityCredential` (no API key).

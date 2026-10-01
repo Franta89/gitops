@@ -16,7 +16,7 @@ exist before the ddot app can run.
 
 ## How it flows
 
-1. `infra-terraform` provisions AKS, Azure AI Services (GPT-5.4-mini), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
+1. `infra-terraform` provisions AKS, Azure AI Services (GPT-5.6 terra + luna), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
 2. Copy two Terraform outputs into gitops manifests (see placeholders in `manifests/news-digest/`).
 3. `kubectl apply -f bootstrap/root-app.yaml` registers the app-of-apps.
 4. Argo CD syncs `apps/` in wave order: cert-manager + envoy-gateway (2) → monitoring + envoy-gateway-config (3) → config (4) → ddot app (5) → argocd-route (6).
@@ -65,7 +65,7 @@ The app gathers news in real time from authoritative **RSS/Atom feeds** (grouped
 BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, AWS, OpenAI,
 and more), then **categorizes each story by content** (`route_tech()` entity
 routing plus one `classify_articles()` AI call) so the area depends on what the
-story is about, not which feed carried it. It uses Azure AI Services (GPT-5.4-mini) — called directly
+story is about, not which feed carried it. It uses Azure AI Services (GPT-5.6: terra writes, luna classifies — see AI_SERVICES.md) — called directly
 against the AI Services account's **v1 API** (`*.openai.azure.com/openai/v1/`,
 stock `OpenAI` client + Entra bearer token, no dated api-version), not via the
 Foundry Hub — to pick and summarise the top ~5 articles per area, and serves
@@ -172,7 +172,7 @@ manifests/
 - [ ] After `terraform apply` in infra-terraform: fill placeholders in serviceaccount.yaml and settings-configmap.yaml.
 - [x] After `terraform apply`: set `OPENAI_ENDPOINT` in `settings-configmap.yaml` to the
       AI Services **v1 API** base URL (`https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/`)
-      and `OPENAI_DEPLOYMENT` to `gpt-5.4-mini`. The app calls AI Services directly; the
+      and `OPENAI_DEPLOYMENT` (now `gpt-5.6-terra`, plus `OPENAI_CLASSIFY_DEPLOYMENT` = `gpt-5.6-luna`). The app calls AI Services directly; the
       Foundry Hub is provisioned but NOT in the inference path (no Hub connection needed).
 - [x] Ingress migrated from AGC to Envoy Gateway (2026-08-07). Cloudflare: apex is an
       **A record → `terraform output ingress_public_ip`** (4.165.129.12, CNS DEV FROZ since 2026-09-30), `www` a CNAME to

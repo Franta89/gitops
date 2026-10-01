@@ -156,7 +156,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=20"></script>
+      <script src="/app.js?v=21"></script>
     </body>
     </html>
 
@@ -734,7 +734,7 @@ data:
           "Infrastructure: AKS (Free tier), Azure Sweden Central",
           "News sources: authoritative RSS/Atom feeds (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, Euronews, plus AWS / Google Cloud / OpenAI newsrooms), 48-72h window",
           "Categorisation: stories routed to areas by topic/entity (deterministic rules + one AI classification pass), not by source feed",
-          "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- selects, summarises, and translates (EN/CS) the top stories per area",
+          "AI: Azure AI GPT-5.6 (GlobalStandard) -- terra selects, summarises, and translates (EN/CS) the top stories per area; luna classifies headlines",
           "Listen: Azure AI neural text-to-speech reads the digest aloud (EN/CS, male/female voice, per-article milestones); audio is pre-generated and cached",
           "Ingress: Envoy Gateway (Gateway API) on a static IP, reachable only from Cloudflare",
           "GitOps: Argo CD (app-of-apps), cert-manager",
@@ -785,7 +785,7 @@ data:
           "Infrastruktura: AKS (Free tier), Azure Svedsko - stred",
           "Zdroje zprav: duveryhodne RSS/Atom kanaly (BBC, The Guardian, CNBC, The Register, BleepingComputer, Al Jazeera, Euronews a newsroomy AWS / Google Cloud / OpenAI), okno 48-72h",
           "Trideni: zpravy jsou zarazeny do oblasti podle tematu/entity (deterministicka pravidla + jeden AI klasifikacni pruchod), ne podle zdrojoveho kanalu",
-          "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- vybira, sumarizuje a preklada (EN/CS) hlavni zpravy v kazde oblasti",
+          "AI: Azure AI GPT-5.6 (GlobalStandard) -- terra vybira, sumarizuje a preklada (EN/CS) hlavni zpravy v kazde oblasti; luna tridi titulky",
           "Poslech: neuronovy prevod textu na rec Azure AI cte prehled nahlas (EN/CS, muzsky/zensky hlas, milniky po clancich); zvuk je predgenerovany a cachovany",
           "Ingress: Envoy Gateway (Gateway API) on a static IP, reachable only from Cloudflare",
           "GitOps: Argo CD (app-of-apps), cert-manager",

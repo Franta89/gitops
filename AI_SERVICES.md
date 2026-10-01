@@ -22,7 +22,7 @@ account and both **keyless** (Workload Identity):
 | Item | Value |
 | --- | --- |
 | Service | **Azure AI Services** account (`ais-ddot-dev-swc-002`) — hosts **both** the OpenAI model and Speech |
-| Text model / deployment | **GPT-5.4-mini** (`gpt-5.4-mini`) |
+| Text model / deployment | **GPT-5.6-terra** (summaries, CS) + **GPT-5.6-luna** (classification); `gpt-5.4-mini` kept for rollback |
 | Text API surface | Azure OpenAI **v1 API** — `https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/` |
 | Text client library | stock `openai` Python SDK (`openai~=1.57.4`), `OpenAI` class |
 | Speech ("Listen") | **Neural text-to-speech**, Standard Neural tier, native EN + CS voices |
@@ -48,9 +48,15 @@ There is no Hub connection, no model-router, and no key-based access.
   identity mints a short-lived Entra token per run. This matches the repo's
   "no key-based external APIs" constraint (see [`CLAUDE.md`](CLAUDE.md) →
   Key decisions).
-- **GPT-5.4-mini.** A small, fast, inexpensive model is sufficient: the workload
-  is classification and bounded summarisation over a few hundred headlines once
-  a day, not interactive chat.
+- **GPT-5.6, split by task (since 2026-10-01).** `gpt-5.6-terra` (mid tier) writes
+  the selection, summaries and Czech translation; `gpt-5.6-luna` (cheapest tier) does
+  the bulk headline classification. Chosen after a side-by-side run against the
+  previous `gpt-5.4-mini`. Estimated ~$8–10/month vs ~$2.50, well inside the ddot
+  budget. Two gpt-5.6 quirks the aggregator handles: the models reject an explicit
+  `temperature` (detected per deployment on the first 400, then omitted), and their
+  hidden reasoning counts against `max_completion_tokens`, so the cap is 16,000
+  (`MAX_COMPLETION_TOKENS`) instead of 4,000. **Rollback:** set both deployments in
+  `settings-configmap.yaml` back to `gpt-5.4-mini`, which is still deployed.
 
 ## What the AI does
 
@@ -58,8 +64,9 @@ The AI is used **only by the aggregator** (`manifests/news-digest/config/aggrega
 which runs as two CronJobs. The FastAPI backend and the nginx frontend do **not**
 call AI — they only read pre-computed results from PostgreSQL.
 
-There are **three distinct AI call sites**, all `chat.completions.create` against
-`gpt-5.4-mini`:
+There are **three distinct AI call sites**, all `chat.completions.create`:
+classification uses `OPENAI_CLASSIFY_DEPLOYMENT` (`gpt-5.6-luna`), the other two
+use `OPENAI_DEPLOYMENT` (`gpt-5.6-terra`):
 
 1. **`classify_articles()` — ambiguous tech routing (daily).**
    Most tech stories are routed to an area (Cloud / AI / Security / Financial) in
@@ -214,7 +221,8 @@ The text (GPT) path is driven by two settings, both in
 
 ```yaml
 OPENAI_ENDPOINT:   "https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/"
-OPENAI_DEPLOYMENT: "gpt-5.4-mini"
+OPENAI_DEPLOYMENT: "gpt-5.6-terra"
+OPENAI_CLASSIFY_DEPLOYMENT: "gpt-5.6-luna"
 ```
 
 - `OPENAI_ENDPOINT` — the v1 API base URL (must end in `/openai/v1/`). Passed as

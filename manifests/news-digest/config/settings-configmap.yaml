@@ -8,7 +8,11 @@ data:
   # api-version params — avoids preview/dated-route breakage. The app uses the
   # stock OpenAI client with an Entra ID bearer token; no OPENAI_API_VERSION.
   OPENAI_ENDPOINT: "https://ais-ddot-dev-swc-002.openai.azure.com/openai/v1/"
-  OPENAI_DEPLOYMENT: "gpt-5.4-mini"
+  # Summaries, selection and Czech translation (quality matters here).
+  OPENAI_DEPLOYMENT: "gpt-5.6-terra"
+  # Bulk headline classification (simple sorting; the cheap tier is enough).
+  # Rollback: set both to "gpt-5.4-mini" (the deployment still exists).
+  OPENAI_CLASSIFY_DEPLOYMENT: "gpt-5.6-luna"
   LOG_LEVEL: "INFO"
 
   # --- "Listen" (text-to-speech) -------------------------------------------
