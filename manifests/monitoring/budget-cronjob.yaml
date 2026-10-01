@@ -12,17 +12,29 @@ metadata:
   namespace: monitoring
 data:
   budget_push.py: |
-    import json, os, sys, urllib.request, urllib.parse
+    import json, os, sys, time, urllib.error, urllib.request, urllib.parse
 
     SUB = os.environ["SUBSCRIPTION_ID"]
     RG = os.environ["RESOURCE_GROUP"]
     PGW = os.environ.get("PUSHGATEWAY", "http://pushgateway:9091").rstrip("/")
     ARM = "https://management.azure.com"
 
-    def _http(url, data=None, headers=None, method=None):
-        req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return r.read()
+    def _http(url, data=None, headers=None, method=None, attempts=4):
+        # Cost Management throttles hard (429) and says how long to wait. Pod-level
+        # retries (backoffLimit) come back within seconds and hit the same window,
+        # so back off here, honouring Retry-After.
+        for attempt in range(1, attempts + 1):
+            req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+            try:
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    return r.read()
+            except urllib.error.HTTPError as e:
+                if e.code != 429 or attempt == attempts:
+                    raise
+                wait = int(e.headers.get("Retry-After") or e.headers.get(
+                    "x-ms-ratelimit-microsoft.costmanagement-entity-retry-after") or 30 * attempt)
+                print("429 from %s, retrying in %ss" % (url.split("?")[0][-60:], min(wait, 90)))
+                time.sleep(min(wait, 90))
 
     # --- Workload Identity: exchange the federated SA token for an ARM token ---
     def arm_token():
@@ -107,7 +119,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 2
-      activeDeadlineSeconds: 120
+      activeDeadlineSeconds: 420   # room for Retry-After backoff on 429
       template:
         metadata:
           labels:

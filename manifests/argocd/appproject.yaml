@@ -25,13 +25,11 @@ metadata:
   name: ddot
   namespace: argocd
 spec:
-  description: Daily Dose of Tech + Kafka sandbox — scoped replacement for the default project.
+  description: Daily Dose of Tech sandbox — scoped replacement for the default project.
 
   sourceRepos:
     - https://github.com/Franta89/gitops.git
-    - https://charts.bitnami.com/bitnami
     - https://charts.jetstack.io
-    - https://strimzi.io/charts/
     - https://prometheus-community.github.io/helm-charts
     - docker.io/envoyproxy
     # Uncomment together with apps/alb-controller.yaml if AGC is ever restored.
@@ -45,16 +43,12 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: envoy-gateway-system
     - server: https://kubernetes.default.svc
-      namespace: kafka
-    - server: https://kubernetes.default.svc
       namespace: monitoring
     - server: https://kubernetes.default.svc
       namespace: news-digest
-    - server: https://kubernetes.default.svc
-      namespace: puzzle
 
-  # Resource KINDS are deliberately left open. cert-manager, Strimzi, Envoy
-  # Gateway and kube-prometheus-stack each install CRDs, ClusterRoles,
+  # Resource KINDS are deliberately left open. cert-manager, Envoy Gateway
+  # and kube-prometheus-stack each install CRDs, ClusterRoles,
   # ClusterRoleBindings and admission webhooks as part of normal operation, so a
   # kind-level blacklist would break them on the next sync rather than block an
   # attack. The value here is in the three restrictions above — source repos,

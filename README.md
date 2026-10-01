@@ -1,12 +1,13 @@
 # gitops
 
-Argo CD source of truth for Strimzi + Kafka (KRaft) running on AKS.
+Argo CD source of truth for the Daily Dose of Tech app, Grafana and the Argo CD UI on AKS.
+(Kafka/Strimzi and the puzzle PostgreSQL were removed on 2026-10-01; see git history.)
 The cluster is provisioned by the companion **infra-terraform** repo.
 
 ## Order
 1. Bring up the cluster + Argo CD via **infra-terraform**.
 2. `kubectl apply -f bootstrap/root-app.yaml`
-3. Watch: `kubectl -n kafka get pods,kafka,kafkanodepool`
+3. Watch: `kubectl -n argocd get applications` (all `Synced` / `Healthy`)
 
 ## Argo CD UI
 `kubectl -n argocd port-forward svc/argocd-server 8080:443`
@@ -248,7 +249,3 @@ policy that module creates **never actually programmed** — the `WAFPolicy` CR 
 at `Deployment=False` for 52 days — so restoring AGC does not by itself restore a
 working WAF. See `SECURITY.md`.
 
-## Note
-
-Strimzi chart version and the Kafka/metadataVersion fields are marked TODO —
-verify before syncing. See CLAUDE.md.

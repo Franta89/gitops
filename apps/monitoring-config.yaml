@@ -1,4 +1,4 @@
-# PodMonitors, Grafana dashboards, and recording rules for the puzzle app.
+# PodMonitors, Grafana dashboards, budget + Cloudflare CronJobs, and the Grafana route.
 # Wave 4 so kube-prometheus-stack CRDs exist before these resources are applied.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

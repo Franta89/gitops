@@ -156,7 +156,7 @@ data:
       </div>
       <audio id="audioEl" preload="none"></audio>
 
-      <script src="/app.js?v=19"></script>
+      <script src="/app.js?v=20"></script>
     </body>
     </html>
 
@@ -669,7 +669,7 @@ data:
       "  |  Argo CD <-- GitOps sync <-- GitHub (gitops repo)                  |",
       "  |  (sync waves 0-5, app-of-apps pattern)                             |",
       "  |                                                                     |",
-      "  |  +----------------------+   Strimzi Operator / Kafka (KRaft)       |",
+      "  |  +----------------------+   Cloudflare-only origin lock (NSG)      |",
       "  |  |  Envoy Gateway       |                                           |",
       "  |  +----------+----------+   cert-manager . Prometheus . Grafana     |",
       "  |             |                                                       |",
@@ -737,7 +737,7 @@ data:
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- selects, summarises, and translates (EN/CS) the top stories per area",
           "Listen: Azure AI neural text-to-speech reads the digest aloud (EN/CS, male/female voice, per-article milestones); audio is pre-generated and cached",
           "Ingress: Envoy Gateway (Gateway API) on a static IP, reachable only from Cloudflare",
-          "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
+          "GitOps: Argo CD (app-of-apps), cert-manager",
           "Secrets: Azure Key Vault + CSI driver (keyless via Workload Identity)",
           "Purpose: dev/test sandbox -- Kubernetes and Azure AI services integration"
         ],
@@ -788,7 +788,7 @@ data:
           "AI: Azure AI GPT-5.4-mini (GlobalStandard) -- vybira, sumarizuje a preklada (EN/CS) hlavni zpravy v kazde oblasti",
           "Poslech: neuronovy prevod textu na rec Azure AI cte prehled nahlas (EN/CS, muzsky/zensky hlas, milniky po clancich); zvuk je predgenerovany a cachovany",
           "Ingress: Envoy Gateway (Gateway API) on a static IP, reachable only from Cloudflare",
-          "GitOps: Argo CD, Strimzi/Kafka, cert-manager",
+          "GitOps: Argo CD (app-of-apps), cert-manager",
           "Tajne klice: Azure Key Vault + CSI driver (keyless pres Workload Identity)",
           "Ucel: vyvojovy sandbox -- integrace Kubernetes a Azure AI sluzeb"
         ],

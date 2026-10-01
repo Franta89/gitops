@@ -3,7 +3,7 @@
 ## What this repo is
 
 The GitOps source of truth for everything that runs INSIDE the AKS cluster:
-the Strimzi/Kafka messaging layer and the **Daily Dose of Tech** (ddot) web
+the platform pieces (cert-manager, Envoy Gateway, Prometheus/Grafana) and the **Daily Dose of Tech** (ddot) web
 application. Argo CD watches this repo and syncs it into the cluster.
 **Dev/test sandbox only — NOT production.**
 
@@ -19,22 +19,20 @@ exist before the ddot app can run.
 1. `infra-terraform` provisions AKS, Azure AI Services (GPT-5.4-mini), AI Foundry Hub, Key Vault, Managed Identity, and installs Argo CD.
 2. Copy two Terraform outputs into gitops manifests (see placeholders in `manifests/news-digest/`).
 3. `kubectl apply -f bootstrap/root-app.yaml` registers the app-of-apps.
-4. Argo CD syncs `apps/` in wave order: Strimzi (0) → Kafka (1) → cert-manager + envoy-gateway (2) → monitoring + postgresql + envoy-gateway-config (3) → config (4) → ddot app (5).
+4. Argo CD syncs `apps/` in wave order: cert-manager + envoy-gateway (2) → monitoring + envoy-gateway-config (3) → config (4) → ddot app (5) → argocd-route (6).
 
 ## Applications
 
 | App                 | Wave | Namespace        | Purpose                            |
 | ------------------- | ---- | ---------------- | ---------------------------------- |
-| strimzi-operator    | 0    | kafka            | Strimzi CRDs + operator            |
-| kafka-cluster       | 1    | kafka            | KRaft Kafka cluster                |
 | cert-manager        | 2    | cert-manager     | TLS certificate management         |
 | envoy-gateway       | 2    | envoy-gateway-system | Gateway API controller (Envoy)  |
 | envoy-gateway-config| 3    | envoy-gateway-system | GatewayClass `eg` + EnvoyProxy  |
 | monitoring          | 3    | monitoring       | Prometheus + Grafana               |
-| postgresql          | 3    | puzzle           | PostgreSQL for puzzle app          |
 | cert-manager-config | 4    | cert-manager     | Let's Encrypt ClusterIssuer        |
 | monitoring-config   | 4    | monitoring       | PodMonitors + dashboards           |
 | news-digest (ddot)  | 5    | news-digest      | Daily Dose of Tech web app         |
+| argocd-route        | 6    | argocd           | Argo CD UI at `/argocd`            |
 
 ## Daily Dose of Tech (ddot)
 
@@ -91,8 +89,9 @@ key-based external APIs.
 
 ## Key decisions / constraints
 
-- Kafka runs in **KRaft mode only**. No ZooKeeper.
-- Default topology = 1 dual-role node, replication factors 1 (minimal test).
+- **Kafka/Strimzi and the puzzle PostgreSQL were removed on 2026-10-01.** The news app
+  never used them, and Kafka alone took ~1.3 GB of the single node's memory. Restore
+  from git history if needed. Azure resource names keep the `kafka` prefix.
 - Public images only. No private registry.
 - Scripts for ddot are mounted via ConfigMap into `python:3.12-slim` pods with
   pinned pip versions. Acceptable for dev/test; a production version would use
@@ -148,7 +147,6 @@ terraform output managed_identity_client_id  # → clientID in SecretProviderCla
 bootstrap/root-app.yaml       app-of-apps root Application (apply once)
 apps/                         Argo CD Applications
 manifests/
-  kafka/                      KafkaNodePool + Kafka CRs
   cert-manager/               ClusterIssuer
   monitoring/                 PodMonitor + Grafana dashboards
   news-digest/                Daily Dose of Tech application
@@ -202,5 +200,3 @@ manifests/
       Data Contributor` (keyless); the `audio` blob container has a 7-day lifecycle.
       The `/api/audio` endpoint synthesizes (SSML → Speech REST) and Blob-caches the
       MP3 the Listen UI plays. See `roadmap.md`.
-- [ ] Confirm latest Strimzi chart version in apps/strimzi-operator.yaml.
-- [ ] Confirm the Kafka `version` and `metadataVersion` in manifests/kafka/kafka.yaml.
