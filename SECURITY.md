@@ -85,7 +85,7 @@ repeated.
 | S3 | 🔴 | **Cloudflare API token over-privileged and over-distributed.** The DNS-edit token (needed only by cert-manager DNS-01) is also mounted into `monitoring` for the `cf-analytics` job, which needs Analytics:Read only. A compromised monitoring pod could repoint `dailydoseoftech.org` or issue certificates for it. | Separate read-only analytics token in Key Vault for `cf-analytics`; DNS-edit token stays in cert-manager only. | open (needs a new token from the Cloudflare dashboard) |
 | S4 | 🟠 | **`/grafana/metrics` publicly readable** — ~130 KB of Grafana internals, unauthenticated. | Gateway rule answering 404 on that path. Prometheus scrapes Grafana in-cluster via its ServiceMonitor, so monitoring is unaffected. | **fixed 2026-09-30** (`grafana-httproute.yaml`). Also fixed the Grafana ServiceMonitor, which scraped `/metrics` and was always down (403) — Grafana serves it under `/grafana` |
 | S5 | 🟠 | **No detection or audit trail.** No AKS diagnostic settings / audit logs, no Defender for Containers, no Azure Policy add-on. An exploit of S1–S3 would leave no record. | AKS `kube-audit-admin` → storage account (cheap); Defender for Containers (~EUR 13/month for this node); Azure Policy add-on (PSS restricted, audit mode first). | open (cost decision) |
-| S6 | 🟠 | **Postgres volume on an AKS-auto-created storage account** (`f92424a5…` in the node RG) with shared-key access and public network access enabled — Azure Files (SMB) requires the key. Extends the Azure Files finding above. | Resolved by the Azure Disk cutover. **Unblocked 2026-10-01:** removing Kafka and the puzzle PostgreSQL freed two of the node's four data-disk slots. A DROP DATABASE on this volume already left undeletable files behind (SMB semantics). | open |
+| S6 | 🟠 | **Postgres volume on an AKS-auto-created storage account** (`f92424a5…` in the node RG) with shared-key access and public network access enabled — Azure Files (SMB) requires the key. Extends the Azure Files finding above. | Resolved by the Azure Disk cutover. | **fixed 2026-10-01** — Postgres now on Azure Disk (`managed-postgres`, StandardSSD, `reclaimPolicy: Retain`); dump/restore verified by row counts. Delete the old `postgres-data-postgres-0` PVC, then check whether the auto-created storage account is left empty. (Before the move, a DROP DATABASE on the SMB volume left undeletable files behind.) |
 | S7 | 🟡 | **Supply chain:** 45 image references not digest-pinned; API + both aggregator CronJobs `pip install` from PyPI on every start (version-pinned, not hash-pinned). | Prebuilt images in ACR, digest-pinned (backlog #10); interim: `pip install --require-hashes`. | open |
 | S8 | ⚪ | Unused `newsapi-key` still stored in Key Vault; `terraform.tfvars` on the operator workstation holds every secret in plaintext (gitignored). | Remove the unused secret; keep tfvars out of synced folders/backups. | open |
 | S9 | ⚪ | **Unverified:** Cloudflare SSL/TLS mode (Full strict) and WAF rules — the API token cannot read zone settings. | Check in the Cloudflare dashboard. | open |
@@ -98,12 +98,12 @@ The Terraform side is **applied and verified** against Azure; state has been mov
 to an Entra-only blob backend with versioning and soft delete, and the local
 plaintext copies were shredded.
 
-Remaining, both in this repo and both deliberately staged rather than auto-synced:
+Status of the two items that were staged rather than auto-synced:
 
-- **Postgres runs on Azure Files (SMB)**, which PostgreSQL does not support, with
-  `reclaimPolicy: Delete` and no backup. Replacement class and cutover procedure
-  are prepared in `manifests/news-digest/postgres/storageclass-managed.yaml`; the
-  migration itself is a manual dump/restore.
+- ~~**Postgres runs on Azure Files (SMB)**~~ — **fixed 2026-10-01.** Moved to Azure
+  Disk (`managed-postgres`, `reclaimPolicy: Retain`) via the dump/restore cutover in
+  `manifests/news-digest/postgres/storageclass-managed.yaml`. Still no scheduled
+  backup: a periodic `pg_dump` to Blob storage remains a gap.
 - **All Argo Applications still use the `default` AppProject.** A scoped project is
   drafted in `manifests/argocd/appproject.yaml` with adoption steps; switching the
   Applications over should be done with the cluster up.
